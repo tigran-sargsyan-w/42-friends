@@ -1,0 +1,656 @@
+// 42 Friends - friends-only floating overlay
+
+function addTooltipOnHover(element, title) {
+    const tooltip = document.createElement("div");
+    tooltip.textContent = title;
+    tooltip.style.position = "absolute";
+    tooltip.style.padding = "4px 8px";
+    tooltip.style.backgroundColor = "rgba(0,0,0,.9)";
+    tooltip.style.color = "white";
+    tooltip.style.borderRadius = "6px";
+    tooltip.style.fontSize = "12px";
+    tooltip.style.pointerEvents = "none";
+    tooltip.style.whiteSpace = "nowrap";
+    tooltip.style.zIndex = "10001";
+    tooltip.style.display = "none";
+    document.body.appendChild(tooltip);
+
+    const onMouseEnter = () => {
+        tooltip.style.display = "block";
+        const rect = element.getBoundingClientRect();
+        tooltip.style.left = `${rect.left + window.scrollX}px`;
+        tooltip.style.top = `${rect.top + window.scrollY - tooltip.offsetHeight - 6}px`;
+    };
+
+    const onMouseLeave = () => {
+        tooltip.style.display = "none";
+    };
+
+    const onMouseMove = (e) => {
+        tooltip.style.left = `${e.pageX + 10}px`;
+        tooltip.style.top = `${e.pageY + 10}px`;
+    };
+
+    element.addEventListener("mouseenter", onMouseEnter);
+    element.addEventListener("mouseleave", onMouseLeave);
+    element.addEventListener("mousemove", onMouseMove);
+
+    return tooltip;
+}
+
+function getFriendList() {
+    const stored = localStorage.getItem("friend_list");
+    if (stored) {
+        try {
+            return JSON.parse(stored);
+        } catch (error) {
+            console.error("Failed to parse friend list from localStorage", error);
+        }
+    }
+    return [];
+}
+
+function saveFriendList(list) {
+    localStorage.setItem("friend_list", JSON.stringify(list));
+}
+
+const CACHE_EXPIRY_MS = 5 * 60 * 1000;
+
+function getCachedFriendData(friend) {
+    const cacheKey = `friend_cache_${friend}`;
+    const cached = localStorage.getItem(cacheKey);
+
+    if (!cached) {
+        return null;
+    }
+
+    try {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < CACHE_EXPIRY_MS) {
+            return parsed.data;
+        }
+        localStorage.removeItem(cacheKey);
+    } catch (error) {
+        localStorage.removeItem(cacheKey);
+    }
+    return null;
+}
+
+function setCachedFriendData(friend, data) {
+    const cacheKey = `friend_cache_${friend}`;
+    localStorage.setItem(cacheKey, JSON.stringify({
+        data: data,
+        timestamp: Date.now()
+    }));
+}
+
+function clearFriendCache(friend) {
+    if (friend) {
+        localStorage.removeItem(`friend_cache_${friend}`);
+        return;
+    }
+
+    Object.keys(localStorage).forEach(key => {
+        if (key.startsWith("friend_cache_")) {
+            localStorage.removeItem(key);
+        }
+    });
+}
+
+async function fetchFriendData(friend, retries = 2) {
+    const cached = getCachedFriendData(friend);
+    if (cached) {
+        return cached;
+    }
+
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const friendObject = await fetch(`https://profile.intra.42.fr/users/${friend}`, {
+                credentials: "include"
+            }).then(res => res.json());
+
+            if (!Object.keys(friendObject).length) {
+                return null;
+            }
+
+            const logTimeObject = await fetch(`https://translate.intra.42.fr/users/${friend}/locations_stats.json`, {
+                credentials: "include"
+            }).then(res => res.json());
+
+            const data = { friend, friend_object: friendObject, log_time_object: logTimeObject };
+            setCachedFriendData(friend, data);
+            return data;
+        } catch (error) {
+            if (attempt === retries) {
+                console.warn(`Failed to load data for ${friend} after ${retries + 1} attempts`, error);
+                throw error;
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+        }
+    }
+
+    return null;
+}
+
+const OVERLAY_ID = "tf-friends-overlay";
+const STORAGE_KEYS = {
+    collapsed: "tf_overlay_collapsed",
+    width: "tf_overlay_width"
+};
+
+function getOverlayState(key, fallback) {
+    const value = localStorage.getItem(key);
+    return value === null ? fallback : value;
+}
+
+function displayFriend(content, friend, today, friendObject, logTimeObject) {
+    try {
+        const item = document.createElement("div");
+        item.style.cssText = `
+            display:flex;
+            align-items:center;
+            gap:12px;
+            margin-bottom:10px;
+            cursor:pointer;
+            transition:background .2s ease, transform .2s ease;
+            padding:10px 12px;
+            border-radius:14px;
+            background:#222732;
+            border:1px solid rgba(255,255,255,.04);
+        `;
+        item.addEventListener("mouseover", () => {
+            item.style.background = "#2a303c";
+            item.style.transform = "translateY(-1px)";
+        });
+        item.addEventListener("mouseout", () => {
+            item.style.background = "#222732";
+            item.style.transform = "translateY(0)";
+        });
+        item.addEventListener("click", () => window.open(`https://profile.intra.42.fr/users/${friend}`, "_blank"));
+
+        const photo = document.createElement("div");
+        photo.className = "user-profile-picture visible-sidebars";
+        photo.style.cssText = `
+            background-image:url(${friendObject.image.link});
+            background-size:cover;
+            width:42px;
+            height:42px;
+            border-radius:50%;
+            background-position:50% 50%;
+            flex:0 0 auto;
+        `;
+
+        const details = document.createElement("div");
+        details.style.cssText = "display:flex;flex-direction:column;gap:4px;min-width:0;";
+
+        const login = document.createElement("div");
+        login.textContent = friend;
+        login.style.cssText = "font-weight:700;font-size:14px;color:#f5f7fa;";
+
+        const infoDisplay = document.createElement("div");
+        infoDisplay.style.cssText = "font-size:12px;color:#aab3bf;";
+        if (logTimeObject[today]) {
+            const [dailyHours, dailyMinutes] = logTimeObject[today].split(":");
+            infoDisplay.textContent = `${dailyHours}h${dailyMinutes || "00"} today`;
+        } else {
+            infoDisplay.textContent = "0h00 today";
+        }
+
+        details.appendChild(login);
+        details.appendChild(infoDisplay);
+
+        const clusterBox = document.createElement("div");
+        clusterBox.style.cssText = "margin-left:auto;display:flex;align-items:center;gap:10px;";
+
+        const clusterPosition = document.createElement("div");
+        clusterPosition.style.cssText = "font-size:12px;color:#b8c0cc;max-width:100px;text-align:right;";
+        if (friendObject.location) {
+            clusterPosition.textContent = friendObject.location;
+            clusterPosition.style.cursor = "pointer";
+            clusterPosition.style.color = "#4fd7ff";
+            clusterPosition.onclick = (event) => {
+                event.stopPropagation();
+                window.open(`https://meta.intra.42.fr/clusters#${friendObject.location}`, "_blank");
+            };
+            addTooltipOnHover(clusterPosition, "Open cluster map");
+        } else {
+            clusterPosition.textContent = "Offline";
+        }
+
+        const status = document.createElement("div");
+        status.style.cssText = `
+            width:10px;
+            height:10px;
+            border-radius:50%;
+            background:${friendObject.location ? "#4BE36A" : "#ff5f56"};
+            box-shadow:0 0 0 3px rgba(255,255,255,.05);
+        `;
+
+        const deleteFriend = document.createElement("button");
+        deleteFriend.type = "button";
+        deleteFriend.textContent = "✕";
+        deleteFriend.style.cssText = `
+            appearance:none;
+            border:none;
+            background:transparent;
+            color:#93a0b1;
+            font-size:14px;
+            cursor:pointer;
+            padding:0 4px;
+            margin-left:6px;
+        `;
+        addTooltipOnHover(deleteFriend, "Delete friend");
+        deleteFriend.onclick = async (event) => {
+            event.stopPropagation();
+
+            if (!confirm(`Delete ${friend} from your friend list?`)) {
+                return;
+            }
+
+            const updatedList = getFriendList().filter(value => value !== friend);
+            saveFriendList(updatedList);
+            item.remove();
+
+            if (!updatedList.length) {
+                await renderFriendsOverlay(content.closest(".tf-friends-body"));
+            }
+        };
+
+        clusterBox.appendChild(clusterPosition);
+        clusterBox.appendChild(status);
+        clusterBox.appendChild(deleteFriend);
+
+        item.appendChild(photo);
+        item.appendChild(details);
+        item.appendChild(clusterBox);
+
+        content.appendChild(item);
+    } catch (error) {
+        console.warn(`Failed to display data for ${friend}`, error);
+    }
+}
+
+async function renderFriendsList(content, sortPreference) {
+    const today = new Date().toISOString().split("T")[0];
+    let friendList = getFriendList();
+
+    content.innerHTML = "";
+
+    const loadingDiv = document.createElement("div");
+    loadingDiv.style.cssText = "display:flex;flex-direction:column;align-items:center;justify-content:center;height:220px;color:#f2f2f2;";
+    loadingDiv.innerHTML = `
+        <div style="font-size:16px;margin-bottom:10px;">Loading friends...</div>
+        <div style="width:30px;height:30px;border:3px solid #f2f2f2;border-top:3px solid transparent;border-radius:50%;animation:tf-spin 1s linear infinite;"></div>
+    `;
+    content.appendChild(loadingDiv);
+
+    if (!friendList.length) {
+        content.innerHTML = `
+            <div style="padding:18px;">
+                <div style="width:100%;min-height:180px;border:2px dashed rgba(255,255,255,.18);border-radius:16px;display:flex;align-items:center;justify-content:center;color:#c6cfda;font-size:15px;text-align:center;padding:24px;background:#20242d;">
+                    Add friends to show them here
+                </div>
+            </div>
+        `;
+        return;
+    }
+
+    try {
+        const friendPromises = friendList.map(friend => fetchFriendData(friend));
+        const results = await Promise.all(friendPromises);
+        const friendDataList = results.filter(data => data !== null);
+
+        if (friendDataList.length !== friendList.length) {
+            const validFriends = friendDataList.map(data => data.friend);
+            saveFriendList(validFriends);
+            friendList = validFriends;
+        }
+
+        switch (sortPreference) {
+            case "Alphabetical (A-Z)":
+                friendDataList.sort((a, b) => a.friend.localeCompare(b.friend));
+                break;
+            case "Alphabetical (Z-A)":
+                friendDataList.sort((a, b) => b.friend.localeCompare(a.friend));
+                break;
+            case "Online First":
+                friendDataList.sort((a, b) => (b.friend_object.location ? 1 : 0) - (a.friend_object.location ? 1 : 0));
+                break;
+            case "Offline First":
+                friendDataList.sort((a, b) => (a.friend_object.location ? 1 : 0) - (b.friend_object.location ? 1 : 0));
+                break;
+        }
+
+        content.innerHTML = "";
+        const list = document.createElement("div");
+        list.style.cssText = "max-height:420px;overflow:auto;padding-right:4px;";
+        content.appendChild(list);
+
+        for (const data of friendDataList) {
+            displayFriend(list, data.friend, today, data.friend_object, data.log_time_object);
+        }
+    } catch (error) {
+        content.innerHTML = `
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:220px;color:#f2f2f2;padding:20px;text-align:center;">
+                <div style="font-size:16px;margin-bottom:10px;color:#ff6b6b;">Failed to load friends</div>
+                <div style="font-size:14px;margin-bottom:15px;opacity:.8;">There was an error loading your friend list</div>
+                <button id="retry-friends-btn" type="button" style="padding:8px 16px;background-color:#4a90e2;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;">Retry</button>
+            </div>
+        `;
+        const retry = content.querySelector("#retry-friends-btn");
+        if (retry) {
+            retry.onclick = () => renderFriendsList(content, sortPreference);
+        }
+    }
+}
+
+function createFriendsToolbar(targetPanel, listContainer) {
+    const sortPreference = localStorage.getItem("friend_sort") || "Alphabetical (A-Z)";
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText = "display:flex;flex-direction:column;gap:12px;margin-bottom:14px;";
+
+    const topRow = document.createElement("div");
+    topRow.style.cssText = "display:flex;gap:10px;align-items:center;";
+
+    const input = document.createElement("input");
+    input.placeholder = "Enter login";
+    input.style.cssText = `
+        flex:1;
+        min-width:0;
+        padding:12px 14px;
+        color:white;
+        background-color:#242a34;
+        border:1px solid rgba(255,255,255,.08);
+        border-radius:12px;
+        outline:none;
+        font-size:14px;
+    `;
+
+    const addButton = document.createElement("button");
+    addButton.type = "button";
+    addButton.textContent = "Add";
+    addButton.style.cssText = `
+        appearance:none;
+        border:none;
+        padding:12px 14px;
+        border-radius:12px;
+        background:linear-gradient(180deg,#24d8e3,#13b9c5);
+        color:#061116;
+        font-weight:800;
+        cursor:pointer;
+    `;
+
+    async function addFriend() {
+        const newFriend = input.value.trim().toLowerCase();
+        const friendList = getFriendList();
+
+        if (!newFriend) {
+            return;
+        }
+
+        if (friendList.includes(newFriend)) {
+            alert("Friend already in list!");
+            return;
+        }
+
+        friendList.push(newFriend);
+        saveFriendList(friendList);
+        input.value = "";
+        await renderFriendsList(listContainer, localStorage.getItem("friend_sort") || "Alphabetical (A-Z)");
+    }
+
+    input.addEventListener("keydown", async (event) => {
+        if (event.key === "Enter") {
+            await addFriend();
+        }
+    });
+    addButton.onclick = addFriend;
+
+    topRow.appendChild(input);
+    topRow.appendChild(addButton);
+
+    const bottomRow = document.createElement("div");
+    bottomRow.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:10px;";
+
+    const sortLabel = document.createElement("div");
+    sortLabel.textContent = "Sort:";
+    sortLabel.style.cssText = "font-size:13px;color:#aab3bf;font-weight:600;";
+
+    const select = document.createElement("select");
+    select.style.cssText = `
+        margin-left:auto;
+        padding:10px 12px;
+        border-radius:12px;
+        background:#242a34;
+        color:#f5f7fa;
+        border:1px solid rgba(255,255,255,.08);
+        font-size:13px;
+        outline:none;
+    `;
+
+    ["Alphabetical (A-Z)", "Alphabetical (Z-A)", "Online First", "Offline First"].forEach(optionText => {
+        const option = document.createElement("option");
+        option.value = optionText;
+        option.textContent = optionText;
+        option.selected = optionText === sortPreference;
+        select.appendChild(option);
+    });
+
+    select.onchange = async () => {
+        localStorage.setItem("friend_sort", select.value);
+        await renderFriendsList(listContainer, select.value);
+    };
+
+    bottomRow.appendChild(sortLabel);
+    bottomRow.appendChild(select);
+
+    wrapper.appendChild(topRow);
+    wrapper.appendChild(bottomRow);
+    targetPanel.appendChild(wrapper);
+}
+
+async function renderFriendsOverlay(body) {
+    body.innerHTML = "";
+
+    const toolbarContainer = document.createElement("div");
+    const listContainer = document.createElement("div");
+
+    body.appendChild(toolbarContainer);
+    body.appendChild(listContainer);
+
+    createFriendsToolbar(toolbarContainer, listContainer);
+    await renderFriendsList(listContainer, localStorage.getItem("friend_sort") || "Alphabetical (A-Z)");
+}
+
+function buildOverlay() {
+    if (document.getElementById(OVERLAY_ID)) {
+        return document.getElementById(OVERLAY_ID);
+    }
+
+    const collapsed = getOverlayState(STORAGE_KEYS.collapsed, "false") === "true";
+    const savedWidth = getOverlayState(STORAGE_KEYS.width, "360");
+
+    const overlay = document.createElement("div");
+    overlay.id = OVERLAY_ID;
+    overlay.style.cssText = `
+        position:fixed;
+        right:24px;
+        bottom:24px;
+        width:${savedWidth}px;
+        max-width:min(92vw, 420px);
+        min-width:320px;
+        color:#f5f7fa;
+        font-family:Inter,Arial,sans-serif;
+        z-index:99999;
+        border-radius:18px;
+        background:rgba(17,21,27,.96);
+        box-shadow:0 18px 45px rgba(0,0,0,.35);
+        border:1px solid rgba(255,255,255,.08);
+        backdrop-filter:blur(12px);
+        overflow:hidden;
+    `;
+
+    const header = document.createElement("div");
+    header.style.cssText = `
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        padding:16px 18px;
+        background:linear-gradient(180deg,#1de0ea,#15b9c5);
+        color:#092026;
+        font-weight:800;
+        font-size:18px;
+        cursor:pointer;
+        user-select:none;
+    `;
+
+    const title = document.createElement("div");
+    title.textContent = "Friends Tracker";
+    title.style.display = "flex";
+    title.style.alignItems = "center";
+    title.style.gap = "8px";
+
+    const titleDot = document.createElement("span");
+    titleDot.textContent = "●";
+    titleDot.style.fontSize = "14px";
+    titleDot.style.opacity = ".8";
+    title.prepend(titleDot);
+
+    const headerActions = document.createElement("div");
+    headerActions.style.cssText = "display:flex;align-items:center;gap:10px;font-size:14px;";
+
+    const refreshButton = document.createElement("button");
+    refreshButton.type = "button";
+    refreshButton.textContent = "↻";
+    refreshButton.style.cssText = `
+        appearance:none;
+        border:none;
+        background:rgba(9,32,38,.14);
+        color:#092026;
+        width:28px;
+        height:28px;
+        border-radius:50%;
+        cursor:pointer;
+        font-size:16px;
+        font-weight:700;
+    `;
+    refreshButton.title = "Refresh friends";
+
+    const collapseIcon = document.createElement("span");
+    collapseIcon.textContent = collapsed ? "▸" : "▾";
+    collapseIcon.style.fontSize = "18px";
+    collapseIcon.style.fontWeight = "900";
+
+    headerActions.appendChild(refreshButton);
+    headerActions.appendChild(collapseIcon);
+
+    header.appendChild(title);
+    header.appendChild(headerActions);
+
+    const body = document.createElement("div");
+    body.className = "tf-friends-body";
+    body.style.cssText = `
+        display:${collapsed ? "none" : "block"};
+        padding:14px;
+        background:linear-gradient(180deg,rgba(28,31,39,.98),rgba(16,18,24,.98));
+    `;
+
+    refreshButton.onclick = async (e) => {
+        e.stopPropagation();
+        clearFriendCache();
+        await renderFriendsOverlay(body);
+    };
+
+    header.addEventListener("click", () => {
+        const isCollapsed = body.style.display === "none";
+        body.style.display = isCollapsed ? "block" : "none";
+        collapseIcon.textContent = isCollapsed ? "▾" : "▸";
+        localStorage.setItem(STORAGE_KEYS.collapsed, isCollapsed ? "false" : "true");
+    });
+
+    overlay.appendChild(header);
+    overlay.appendChild(body);
+    document.body.appendChild(overlay);
+
+    makeOverlayDraggable(overlay, header);
+    renderFriendsOverlay(body);
+
+    return overlay;
+}
+
+function makeOverlayDraggable(overlay, dragHandle) {
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let startRight = 24;
+    let startBottom = 24;
+
+    dragHandle.addEventListener("mousedown", (event) => {
+        if (event.target.tagName === "BUTTON") {
+            return;
+        }
+        isDragging = true;
+        startX = event.clientX;
+        startY = event.clientY;
+        startRight = parseInt(window.getComputedStyle(overlay).right, 10) || 24;
+        startBottom = parseInt(window.getComputedStyle(overlay).bottom, 10) || 24;
+        document.body.style.userSelect = "none";
+    });
+
+    document.addEventListener("mousemove", (event) => {
+        if (!isDragging) {
+            return;
+        }
+
+        const deltaX = event.clientX - startX;
+        const deltaY = event.clientY - startY;
+
+        overlay.style.right = `${Math.max(8, startRight - deltaX)}px`;
+        overlay.style.bottom = `${Math.max(8, startBottom - deltaY)}px`;
+    });
+
+    document.addEventListener("mouseup", () => {
+        isDragging = false;
+        document.body.style.userSelect = "";
+    });
+}
+
+function injectSharedStyles() {
+    if (document.getElementById("tf-friends-styles")) {
+        return;
+    }
+
+    const style = document.createElement("style");
+    style.id = "tf-friends-styles";
+    style.textContent = `
+        @keyframes tf-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        #${OVERLAY_ID} ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        #${OVERLAY_ID} ::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,.14);
+            border-radius: 999px;
+        }
+
+        #${OVERLAY_ID} ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+function init() {
+    injectSharedStyles();
+    buildOverlay();
+}
+
+if (!window.__42_FRIENDS_LOADED__) {
+    window.__42_FRIENDS_LOADED__ = true;
+    init();
+}
