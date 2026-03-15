@@ -631,13 +631,174 @@ function injectSharedStyles() {
         #${OVERLAY_ID} ::-webkit-scrollbar-track {
             background: transparent;
         }
+
+        #tf-profile-friend-btn {
+            margin-left: 10px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1.2;
+            cursor: pointer;
+            transition: background-color .18s ease, border-color .18s ease, color .18s ease;
+        }
+
+        #tf-profile-friend-btn[data-mode="add"] {
+            color: #0f311b;
+            background: #6ee7a0;
+            border-color: #45cc82;
+        }
+
+        #tf-profile-friend-btn[data-mode="remove"] {
+            color: #3a1212;
+            background: #ff9a9a;
+            border-color: #f27777;
+        }
     `;
     document.head.appendChild(style);
+}
+
+const PROFILE_FRIEND_BUTTON_ID = "tf-profile-friend-btn";
+let profileObserverInitialized = false;
+let profileButtonUpdateInProgress = false;
+let profileUrlWatcher = null;
+
+function getProfileLoginContext() {
+    if (window.location.hostname !== "profile.intra.42.fr") {
+        return null;
+    }
+
+    const pathMatch = window.location.pathname.match(/^\/users\/([^/?#]+)/);
+    if (!pathMatch) {
+        return null;
+    }
+
+    const loginElement = document.querySelector("span.login[data-login]");
+    if (!loginElement) {
+        return null;
+    }
+
+    const loginFromData = (loginElement.getAttribute("data-login") || "").trim();
+    const loginFromPath = decodeURIComponent(pathMatch[1] || "").trim();
+    const login = (loginFromData || loginFromPath).toLowerCase();
+
+    if (!login) {
+        return null;
+    }
+
+    return { login, loginElement };
+}
+
+async function refreshOverlayIfPresent() {
+    const overlayBody = document.querySelector(".tf-friends-body");
+    if (!overlayBody) {
+        return;
+    }
+    await renderFriendsOverlay(overlayBody);
+}
+
+async function renderProfileFriendButton() {
+    const context = getProfileLoginContext();
+    const existingButton = document.getElementById(PROFILE_FRIEND_BUTTON_ID);
+
+    if (!context) {
+        if (existingButton) {
+            existingButton.remove();
+        }
+        return;
+    }
+
+    const { login, loginElement } = context;
+    let button = existingButton;
+
+    if (!button) {
+        button = document.createElement("button");
+        button.id = PROFILE_FRIEND_BUTTON_ID;
+        button.type = "button";
+    }
+
+    if (loginElement.nextElementSibling !== button) {
+        loginElement.insertAdjacentElement("afterend", button);
+    }
+
+    button.dataset.login = login;
+
+    const friendList = await getFriendList();
+    const isFriend = friendList.includes(login);
+    button.dataset.mode = isFriend ? "remove" : "add";
+    button.textContent = isFriend ? "Remove Friend" : "Add Friend";
+
+    button.onclick = async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const targetLogin = (button.dataset.login || "").trim().toLowerCase();
+        if (!targetLogin) {
+            return;
+        }
+
+        const currentList = await getFriendList();
+        const alreadyFriend = currentList.includes(targetLogin);
+
+        if (alreadyFriend) {
+            const nextList = currentList.filter((value) => value !== targetLogin);
+            await saveFriendList(nextList);
+            await clearFriendCache(targetLogin);
+        } else {
+            const nextList = [...currentList, targetLogin];
+            await saveFriendList(nextList);
+        }
+
+        await renderProfileFriendButton();
+        await refreshOverlayIfPresent();
+    };
+}
+
+async function updateProfileFriendButton() {
+    if (profileButtonUpdateInProgress) {
+        return;
+    }
+
+    profileButtonUpdateInProgress = true;
+    try {
+        await renderProfileFriendButton();
+    } finally {
+        profileButtonUpdateInProgress = false;
+    }
+}
+
+function initProfileFriendButton() {
+    if (profileObserverInitialized) {
+        return;
+    }
+    profileObserverInitialized = true;
+
+    const observer = new MutationObserver(() => {
+        updateProfileFriendButton();
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    let previousUrl = window.location.href;
+    profileUrlWatcher = window.setInterval(() => {
+        const currentUrl = window.location.href;
+        if (currentUrl !== previousUrl) {
+            previousUrl = currentUrl;
+            updateProfileFriendButton();
+        }
+    }, 500);
+
+    window.addEventListener("popstate", updateProfileFriendButton);
+    window.addEventListener("hashchange", updateProfileFriendButton);
+
+    updateProfileFriendButton();
 }
 
 function init() {
     injectSharedStyles();
     buildOverlay();
+    initProfileFriendButton();
 }
 
 if (!window.__42_FRIENDS_LOADED__) {
