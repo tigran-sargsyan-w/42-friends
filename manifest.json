@@ -16,7 +16,8 @@
   "permissions": [
     "scripting",
     "activeTab",
-    "tabs"
+    "tabs",
+    "storage"
   ],
   "host_permissions": [
     "https://profile.intra.42.fr/*",

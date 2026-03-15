@@ -38,67 +38,53 @@ function addTooltipOnHover(element, title) {
     return tooltip;
 }
 
-function getFriendList() {
-    const stored = localStorage.getItem("friend_list");
-    if (stored) {
-        try {
-            return JSON.parse(stored);
-        } catch (error) {
-            console.error("Failed to parse friend list from localStorage", error);
-        }
-    }
-    return [];
+async function getFriendList() {
+    const result = await chrome.storage.local.get("friend_list");
+    return result.friend_list || [];
 }
 
-function saveFriendList(list) {
-    localStorage.setItem("friend_list", JSON.stringify(list));
+async function saveFriendList(list) {
+    await chrome.storage.local.set({ friend_list: list });
 }
 
 const CACHE_EXPIRY_MS = 5 * 60 * 1000;
 
-function getCachedFriendData(friend) {
+async function getCachedFriendData(friend) {
     const cacheKey = `friend_cache_${friend}`;
-    const cached = localStorage.getItem(cacheKey);
+    const result = await chrome.storage.local.get(cacheKey);
+    const cached = result[cacheKey];
 
     if (!cached) {
         return null;
     }
 
-    try {
-        const parsed = JSON.parse(cached);
-        if (Date.now() - parsed.timestamp < CACHE_EXPIRY_MS) {
-            return parsed.data;
-        }
-        localStorage.removeItem(cacheKey);
-    } catch (error) {
-        localStorage.removeItem(cacheKey);
+    if (Date.now() - cached.timestamp < CACHE_EXPIRY_MS) {
+        return cached.data;
     }
+    await chrome.storage.local.remove(cacheKey);
     return null;
 }
 
-function setCachedFriendData(friend, data) {
+async function setCachedFriendData(friend, data) {
     const cacheKey = `friend_cache_${friend}`;
-    localStorage.setItem(cacheKey, JSON.stringify({
-        data: data,
-        timestamp: Date.now()
-    }));
+    await chrome.storage.local.set({ [cacheKey]: { data, timestamp: Date.now() } });
 }
 
-function clearFriendCache(friend) {
+async function clearFriendCache(friend) {
     if (friend) {
-        localStorage.removeItem(`friend_cache_${friend}`);
+        await chrome.storage.local.remove(`friend_cache_${friend}`);
         return;
     }
 
-    Object.keys(localStorage).forEach(key => {
-        if (key.startsWith("friend_cache_")) {
-            localStorage.removeItem(key);
-        }
-    });
+    const all = await chrome.storage.local.get(null);
+    const cacheKeys = Object.keys(all).filter(key => key.startsWith("friend_cache_"));
+    if (cacheKeys.length > 0) {
+        await chrome.storage.local.remove(cacheKeys);
+    }
 }
 
 async function fetchFriendData(friend, retries = 2) {
-    const cached = getCachedFriendData(friend);
+    const cached = await getCachedFriendData(friend);
     if (cached) {
         return cached;
     }
@@ -118,7 +104,7 @@ async function fetchFriendData(friend, retries = 2) {
             }).then(res => res.json());
 
             const data = { friend, friend_object: friendObject, log_time_object: logTimeObject };
-            setCachedFriendData(friend, data);
+            await setCachedFriendData(friend, data);
             return data;
         } catch (error) {
             if (attempt === retries) {
@@ -138,9 +124,9 @@ const STORAGE_KEYS = {
     width: "tf_overlay_width"
 };
 
-function getOverlayState(key, fallback) {
-    const value = localStorage.getItem(key);
-    return value === null ? fallback : value;
+async function getOverlayState(key, fallback) {
+    const result = await chrome.storage.local.get(key);
+    return result[key] !== undefined ? result[key] : fallback;
 }
 
 function displayFriend(content, friend, today, friendObject, logTimeObject) {
@@ -247,8 +233,9 @@ function displayFriend(content, friend, today, friendObject, logTimeObject) {
                 return;
             }
 
-            const updatedList = getFriendList().filter(value => value !== friend);
-            saveFriendList(updatedList);
+            const currentList = await getFriendList();
+            const updatedList = currentList.filter(value => value !== friend);
+            await saveFriendList(updatedList);
             item.remove();
 
             if (!updatedList.length) {
@@ -272,7 +259,7 @@ function displayFriend(content, friend, today, friendObject, logTimeObject) {
 
 async function renderFriendsList(content, sortPreference) {
     const today = new Date().toISOString().split("T")[0];
-    let friendList = getFriendList();
+    let friendList = await getFriendList();
 
     content.innerHTML = "";
 
@@ -302,7 +289,7 @@ async function renderFriendsList(content, sortPreference) {
 
         if (friendDataList.length !== friendList.length) {
             const validFriends = friendDataList.map(data => data.friend);
-            saveFriendList(validFriends);
+            await saveFriendList(validFriends);
             friendList = validFriends;
         }
 
@@ -344,8 +331,9 @@ async function renderFriendsList(content, sortPreference) {
     }
 }
 
-function createFriendsToolbar(targetPanel, listContainer) {
-    const sortPreference = localStorage.getItem("friend_sort") || "Alphabetical (A-Z)";
+async function createFriendsToolbar(targetPanel, listContainer) {
+    const sortResult = await chrome.storage.local.get("friend_sort");
+    const sortPreference = sortResult.friend_sort || "Alphabetical (A-Z)";
     const wrapper = document.createElement("div");
     wrapper.style.cssText = "display:flex;flex-direction:column;gap:12px;margin-bottom:14px;";
 
@@ -382,7 +370,7 @@ function createFriendsToolbar(targetPanel, listContainer) {
 
     async function addFriend() {
         const newFriend = input.value.trim().toLowerCase();
-        const friendList = getFriendList();
+        const friendList = await getFriendList();
 
         if (!newFriend) {
             return;
@@ -394,9 +382,10 @@ function createFriendsToolbar(targetPanel, listContainer) {
         }
 
         friendList.push(newFriend);
-        saveFriendList(friendList);
+        await saveFriendList(friendList);
         input.value = "";
-        await renderFriendsList(listContainer, localStorage.getItem("friend_sort") || "Alphabetical (A-Z)");
+        const currentSort = await chrome.storage.local.get("friend_sort");
+        await renderFriendsList(listContainer, currentSort.friend_sort || "Alphabetical (A-Z)");
     }
 
     input.addEventListener("keydown", async (event) => {
@@ -437,7 +426,7 @@ function createFriendsToolbar(targetPanel, listContainer) {
     });
 
     select.onchange = async () => {
-        localStorage.setItem("friend_sort", select.value);
+        await chrome.storage.local.set({ friend_sort: select.value });
         await renderFriendsList(listContainer, select.value);
     };
 
@@ -458,17 +447,18 @@ async function renderFriendsOverlay(body) {
     body.appendChild(toolbarContainer);
     body.appendChild(listContainer);
 
-    createFriendsToolbar(toolbarContainer, listContainer);
-    await renderFriendsList(listContainer, localStorage.getItem("friend_sort") || "Alphabetical (A-Z)");
+    await createFriendsToolbar(toolbarContainer, listContainer);
+    const sortResult = await chrome.storage.local.get("friend_sort");
+    await renderFriendsList(listContainer, sortResult.friend_sort || "Alphabetical (A-Z)");
 }
 
-function buildOverlay() {
+async function buildOverlay() {
     if (document.getElementById(OVERLAY_ID)) {
         return document.getElementById(OVERLAY_ID);
     }
 
-    const collapsed = getOverlayState(STORAGE_KEYS.collapsed, "false") === "true";
-    const savedWidth = getOverlayState(STORAGE_KEYS.width, "360");
+    const collapsed = await getOverlayState(STORAGE_KEYS.collapsed, "false") === "true";
+    const savedWidth = await getOverlayState(STORAGE_KEYS.width, "360");
 
     const overlay = document.createElement("div");
     overlay.id = OVERLAY_ID;
@@ -565,7 +555,7 @@ function buildOverlay() {
         const isCollapsed = body.style.display === "none";
         body.style.display = isCollapsed ? "block" : "none";
         collapseIcon.textContent = isCollapsed ? "▾" : "▸";
-        localStorage.setItem(STORAGE_KEYS.collapsed, isCollapsed ? "false" : "true");
+        chrome.storage.local.set({ [STORAGE_KEYS.collapsed]: isCollapsed ? "false" : "true" });
     });
 
     overlay.appendChild(header);
