@@ -634,6 +634,7 @@ function injectSharedStyles() {
 
         #tf-profile-friend-btn {
             margin-left: 10px;
+            margin-right: 10px;
             padding: 4px 10px;
             border-radius: 999px;
             border: 1px solid transparent;
