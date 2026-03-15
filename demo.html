@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>42 Friends — Intra-style demo</title>
+  <style>
+    :root {
+      --bg: #0a0f18;
+      --page: #0b111b;
+      --nav: #202534;
+      --sidebar: #1f2534;
+      --panel: #171d2a;
+      --panel-border: rgba(255,255,255,.05);
+      --panel-soft: rgba(255,255,255,.02);
+      --text: #f4f7fb;
+      --muted: #9ba6ba;
+      --cyan: #16d4e1;
+      --cyan-dark: #10b7c3;
+      --green: #26eb00;
+      --red: #ea7480;
+      --shadow: 0 18px 42px rgba(0,0,0,.35);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 68px 1fr;
+      grid-template-rows: 48px 1fr;
+      height: 100vh;
+      background: linear-gradient(180deg, #0b1018 0%, #091019 100%);
+    }
+
+    .sidebar {
+      grid-row: 1 / span 2;
+      background: var(--sidebar);
+      border-right: 1px solid rgba(255,255,255,.04);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 10px;
+      gap: 18px;
+      z-index: 3;
+    }
+
+    .logo42 {
+      width: 30px;
+      height: 20px;
+      position: relative;
+      margin-bottom: 4px;
+    }
+    .logo42::before,
+    .logo42::after {
+      content: "";
+      position: absolute;
+      background: #fff;
+    }
+    .logo42::before {
+      left: 0; top: 0; width: 11px; height: 20px;
+      clip-path: polygon(0 0, 100% 0, 67% 100%, 0 100%);
+    }
+    .logo42::after {
+      right: 0; top: 0; width: 17px; height: 20px;
+      clip-path: polygon(36% 0,100% 0,100% 100%,0 100%,0 72%,58% 72%,58% 32%,0 32%,0 0);
+    }
+
+    .side-icon {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      color: #c7d0df;
+      font-size: 16px;
+      opacity: .95;
+    }
+
+    .topbar {
+      grid-column: 2;
+      background: var(--nav);
+      border-bottom: 1px solid rgba(255,255,255,.04);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      z-index: 3;
+    }
+
+    .search {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #8994a6;
+      font-size: 13px;
+    }
+
+    .search-pill {
+      min-width: 210px;
+      height: 28px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.02);
+      color: #818b9d;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      border: 1px solid rgba(255,255,255,.04);
+    }
+
+    .top-actions {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 13px;
+    }
+
+    .avatar {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #86724f, #e8cfb3);
+      border: 2px solid rgba(255,255,255,.18);
+    }
+
+    .problem-btn {
+      background: var(--red);
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+
+    .content {
+      grid-column: 2;
+      overflow: auto;
+      background: var(--page);
+      padding-bottom: 90px;
+    }
+
+    .hero {
+      position: relative;
+      min-height: 325px;
+      padding: 18px 20px 22px;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(0,0,0,.10), rgba(0,0,0,.28)),
+        linear-gradient(135deg, rgba(12,255,67,.18), rgba(10,168,111,.08)),
+        repeating-linear-gradient(36deg,
+          rgba(33,255,0,.22) 0 54px,
+          rgba(0,0,0,0) 54px 120px,
+          rgba(111,255,132,.18) 120px 180px,
+          rgba(0,0,0,0) 180px 248px),
+        repeating-linear-gradient(145deg,
+          rgba(0,150,110,.18) 0 70px,
+          rgba(0,0,0,0) 70px 138px,
+          rgba(125,255,80,.12) 138px 215px,
+          rgba(0,0,0,0) 215px 290px),
+        linear-gradient(90deg, #173626, #1e3b39 34%, #203244 72%, #18311f 100%);
+      filter: saturate(1.08);
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .profile-head {
+      display: grid;
+      grid-template-columns: 112px 1fr;
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 8px;
+    }
+
+    .badge-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding-top: 14px;
+    }
+
+    .shield {
+      width: 92px;
+      height: 134px;
+      clip-path: polygon(0 0,100% 0,100% 78%,50% 100%,0 78%);
+      background: linear-gradient(180deg, #1fff00 0%, #0de500 100%);
+      display: grid;
+      place-items: center;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.12);
+    }
+
+    .globe {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      border: 2px solid rgba(240,255,245,.9);
+      position: relative;
+    }
+    .globe::before,
+    .globe::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1px solid rgba(240,255,245,.65);
+    }
+    .globe::before { transform: scaleX(.52); }
+    .globe::after { transform: scaleY(.52); }
+
+    .tiny-stats {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-weight: 700;
+      color: #f4f7fb;
+      font-size: 13px;
+    }
+
+    .identity .name-line {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-size: 17px;
+      font-weight: 800;
+      margin-top: 10px;
+      margin-bottom: 12px;
+    }
+    .identity .campus {
+      color: var(--green);
+      font-weight: 700;
+    }
+    .identity .login {
+      font-size: 14px;
+      font-weight: 700;
+      opacity: .95;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 360px 1fr 1fr;
+      gap: 10px;
+    }
+
+    .hero-card,
+    .panel {
+      background: rgba(20, 26, 37, .94);
+      border: 1px solid var(--panel-border);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.02);
+    }
+
+    .hero-card {
+      min-height: 178px;
+      padding: 22px 26px;
+      border-radius: 3px;
+    }
+
+    .stats-kv {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px 18px;
+      margin-top: 8px;
+      font-size: 16px;
+    }
+
+    .stats-kv .key { color: var(--green); font-weight: 700; }
+    .stats-kv .value { color: #f3f6fb; font-weight: 600; }
+
+    .hero-title {
+      text-align: center;
+      color: var(--green);
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 14px;
+    }
+
+    .chart {
+      position: relative;
+      height: 110px;
+      margin: 0 34px;
+    }
+    .chart::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(transparent 0 22%, rgba(255,255,255,.13) 22% 23%, transparent 23% 44%, rgba(255,255,255,.13) 44% 45%, transparent 45% 66%, rgba(255,255,255,.13) 66% 67%, transparent 67% 88%, rgba(255,255,255,.13) 88% 89%, transparent 89% 100%),
+        linear-gradient(90deg, rgba(255,255,255,.10) 0 1px, transparent 1px 100%);
+      background-size: 100% 100%, 25% 100%;
+    }
+    .chart-bar {
+      position: absolute;
+      left: 58%; bottom: 10px;
+      width: 18px; height: 12px;
+      background: var(--green);
+      border-radius: 2px;
+    }
+    .chart-labels {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      color: rgba(255,255,255,.42);
+      font-size: 11px;
+      margin: 6px 22px 0;
+      text-align: center;
+    }
+
+    .center-card {
+      display: grid;
+      place-items: center;
+      font-size: 24px;
+      text-align: center;
+    }
+
+    .eta {
+      display: grid;
+      place-items: center;
+      text-align: center;
+      gap: 8px;
+    }
+    .eta .green { color: var(--green); font-weight: 700; font-size: 14px; }
+
+    .level {
+      margin-top: 8px;
+      height: 34px;
+      background: rgba(18, 22, 31, .92);
+      border-radius: 2px;
+      position: relative;
+      overflow: hidden;
+    }
+    .level::before {
+      content: "";
+      position: absolute;
+      inset: 0 56% 0 0;
+      background: linear-gradient(90deg, #28f000, #16d902);
+    }
+    .level::after {
+      content: "level 5 - 26%";
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 13px;
+    }
+
+    .main-grid {
+      padding: 8px 20px 0;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    .panel {
+      min-height: 220px;
+      padding: 28px 30px;
+      border-radius: 3px;
+    }
+    .panel.tall { min-height: 372px; }
+
+    .panel-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .tools { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tool {
+      border: 1px solid rgba(22,212,225,.68);
+      color: var(--cyan);
+      padding: 5px 9px;
+      font-size: 11px;
+      border-radius: 1px;
+    }
+
+    .agenda {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .agenda-item {
+      display: grid;
+      grid-template-columns: 74px 1fr;
+      min-height: 84px;
+      border: 1px solid rgba(255,255,255,.16);
+      overflow: hidden;
+    }
+    .agenda-date {
+      display: grid;
+      place-items: center;
+      text-align: center;
+      background: rgba(255,255,255,.02);
+      font-size: 14px;
+      color: #f0f3f8;
+      line-height: 1.1;
+    }
+    .agenda-body {
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 8px;
+    }
+    .agenda-main { font-size: 15px; font-weight: 700; }
+    .agenda-sub { font-size: 12px; color: #bac4d5; }
+
+    .calendar-wrap {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      color: #a9b4c7;
+      font-size: 10px;
+      margin-top: 8px;
+    }
+    .mini-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+      margin-top: 8px;
+    }
+    .mini { height: 12px; background: rgba(255,255,255,.06); border-radius: 1px; }
+    .mini.on { background: rgba(22,212,225,.82); }
+
+    .skills-graph {
+      width: 230px;
+      height: 230px;
+      margin: 10px auto 0;
+      border-radius: 50%;
+      position: relative;
+      border: 1px solid rgba(255,255,255,.08);
+      background:
+        radial-gradient(circle at center, transparent 0 10%, rgba(255,255,255,.09) 10.5% 11%, transparent 11.5% 22%, rgba(255,255,255,.09) 22.5% 23%, transparent 23.5% 34%, rgba(255,255,255,.09) 34.5% 35%, transparent 35.5% 46%, rgba(255,255,255,.09) 46.5% 47%, transparent 47.5% 58%, rgba(255,255,255,.09) 58.5% 59%, transparent 59.5% 70%, rgba(255,255,255,.09) 70.5% 71%, transparent 71.5% 100%),
+        conic-gradient(from 0deg, rgba(255,255,255,.08) 0 1deg, transparent 1deg 30deg, rgba(255,255,255,.08) 30deg 31deg, transparent 31deg 60deg, rgba(255,255,255,.08) 60deg 61deg, transparent 61deg 90deg, rgba(255,255,255,.08) 90deg 91deg, transparent 91deg 120deg, rgba(255,255,255,.08) 120deg 121deg, transparent 121deg 150deg, rgba(255,255,255,.08) 150deg 151deg, transparent 151deg 180deg, rgba(255,255,255,.08) 180deg 181deg, transparent 181deg 210deg, rgba(255,255,255,.08) 210deg 211deg, transparent 211deg 240deg, rgba(255,255,255,.08) 240deg 241deg, transparent 241deg 270deg, rgba(255,255,255,.08) 270deg 271deg, transparent 271deg 300deg, rgba(255,255,255,.08) 300deg 301deg, transparent 301deg 330deg, rgba(255,255,255,.08) 330deg 331deg, transparent 331deg 360deg);
+    }
+    .skills-graph::before {
+      content: "";
+      position: absolute;
+      inset: 36% 36%;
+      background: #0c111b;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,.06);
+    }
+    .skills-graph::after {
+      content: "";
+      position: absolute;
+      inset: 26% 33%;
+      clip-path: polygon(50% 0%, 70% 32%, 100% 40%, 72% 58%, 80% 100%, 50% 74%, 20% 100%, 28% 58%, 0% 40%, 30% 32%);
+      background: rgba(22,212,225,.88);
+      filter: drop-shadow(0 0 10px rgba(22,212,225,.35));
+      opacity: .82;
+    }
+
+    .bottom-links {
+      display: flex;
+      gap: 22px;
+      flex-wrap: wrap;
+      justify-content: center;
+      color: #0db9c9;
+      font-size: 12px;
+      padding: 18px 20px 95px;
+    }
+
+    .overlay {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      width: 356px;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: var(--shadow);
+      z-index: 9;
+      backdrop-filter: blur(12px);
+    }
+
+    .overlay-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 18px;
+      background: linear-gradient(180deg, #24e0ea, #14bac6);
+      color: #082027;
+      font-weight: 800;
+      font-size: 17px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .overlay-left,
+    .overlay-right { display: flex; align-items: center; gap: 10px; }
+
+    .overlay-body {
+      background: linear-gradient(180deg, rgba(27,31,40,.98), rgba(16,18,24,.98));
+      padding: 14px;
+      color: #f3f6fb;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .row { display: flex; gap: 10px; align-items: center; }
+    .input, .select {
+      flex: 1;
+      min-width: 0;
+      background: #242a34;
+      color: #f5f7fa;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 14px;
+      outline: none;
+    }
+    .add-btn {
+      appearance: none;
+      border: none;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-weight: 800;
+      color: #061116;
+      background: linear-gradient(180deg, #24d8e3, #13b9c5);
+      cursor: pointer;
+    }
+
+    .friends { max-height: 420px; overflow: auto; padding-right: 4px; }
+
+    .friend {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: #222732;
+      border: 1px solid rgba(255,255,255,.04);
+      margin-bottom: 10px;
+    }
+    .friend-avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #c6a97c, #f1dcc5);
+      flex: 0 0 auto;
+    }
+    .friend-main { min-width: 0; }
+    .friend-login { font-weight: 700; font-size: 15px; }
+    .friend-time { color: #bcc5d4; font-size: 13px; margin-top: 2px; }
+    .friend-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: #b8c0d0;
+      font-size: 13px;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #33da58;
+      box-shadow: 0 0 0 3px rgba(51,218,88,.08);
+    }
+    .status-dot.offline {
+      background: #ff5757;
+      box-shadow: 0 0 0 3px rgba(255,87,87,.08);
+    }
+
+    @media (max-width: 1250px) {
+      .hero-grid, .main-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 900px) {
+      .hero-grid, .main-grid { grid-template-columns: 1fr; }
+      .overlay { width: calc(100vw - 32px); right: 16px; bottom: 16px; }
+      .search-pill { min-width: 140px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="logo42"></div>
+      <div class="side-icon">👤</div>
+      <div class="side-icon">🕸</div>
+      <div class="side-icon">🎞</div>
+      <div class="side-icon">💬</div>
+      <div class="side-icon">💼</div>
+      <div class="side-icon">🧭</div>
+      <div class="side-icon">🛒</div>
+    </aside>
+
+    <header class="topbar">
+      <div class="search">
+        <div style="font-size:18px">⌕</div>
+        <div class="search-pill">search...</div>
+      </div>
+      <div class="top-actions">
+        <div>🔔 0</div>
+        <div style="display:flex; align-items:center; gap:10px; font-weight:700;">
+          <span>login</span>
+          <div class="avatar"></div>
+        </div>
+        <div class="problem-btn">Have a problem?</div>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="hero">
+        <div class="hero-content">
+          <div class="profile-head">
+            <div class="badge-col">
+              <div class="shield"><div class="globe"></div></div>
+              <div class="tiny-stats">
+                <div>🏆 10</div>
+                <div>⟰ 122</div>
+              </div>
+            </div>
+
+            <div class="identity">
+              <div class="name-line">
+                <span class="campus">Earth</span>
+                <span>First Name Last Name</span>
+                <span class="login">login</span>
+              </div>
+
+              <div class="hero-grid">
+                <div class="hero-card">
+                  <div class="stats-kv">
+                    <div class="key">Wallet</div><div class="value">146 ₳</div>
+                    <div class="key">Evaluation points</div><div class="value">2</div>
+                    <div class="key">Cursus</div><div class="value">42cursus ▾</div>
+                    <div class="key">Grade</div><div class="value">Cadet</div>
+                  </div>
+                </div>
+
+                <div class="hero-card">
+                  <div class="hero-title">Weekly Attendance</div>
+                  <div class="chart"><div class="chart-bar"></div></div>
+                  <div class="chart-labels">
+                    <span>W-4</span><span>W-3</span><span>W-2</span><span>Last Week</span>
+                  </div>
+                </div>
+
+                <div class="hero-card eta">
+                  <div style="font-size:16px; font-weight:700; color: var(--green);">Milestone Deadline</div>
+                  <div style="font-size:24px;">11.07.2026</div>
+                  <div class="green">Common Core ETA</div>
+                  <div style="font-size:18px;">05.10.2026</div>
+                </div>
+              </div>
+
+              <div class="level"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="main-grid">
+        <div class="panel tall">
+          <div class="panel-title">
+            <span>AGENDA</span>
+            <div class="tools">
+              <div class="tool">ALL EVENTS</div>
+              <div class="tool">EVENTS MARKS</div>
+              <div class="tool">SET UP SYNC</div>
+              <div class="tool">FILTERS ▾</div>
+            </div>
+          </div>
+          <div class="agenda">
+            <div class="agenda-item">
+              <div class="agenda-date">Fri<br><span style="font-size:34px; font-weight:300;">13</span><br>March</div>
+              <div class="agenda-body">
+                <div class="agenda-main">Extern CodingGame Winter Challenge 2026: Snakebyte</div>
+                <div class="agenda-sub">🗓 10:00 AM &nbsp;&nbsp; ◔ 11 jours</div>
+              </div>
+            </div>
+            <div class="agenda-item">
+              <div class="agenda-date">Mon<br><span style="font-size:34px; font-weight:300;">16</span><br>March</div>
+              <div class="agenda-body">
+                <div class="agenda-main">Extern Jobdating — Semaine de l'alternance</div>
+                <div class="agenda-sub">🗓 8:00 AM &nbsp;&nbsp; ◔ 4 days</div>
+              </div>
+            </div>
+            <div class="agenda-item" style="border-color: rgba(37,223,166,.65);">
+              <div class="agenda-date" style="background:#35e6a9; color:#fff;">Mon<br><span style="font-size:34px; font-weight:300;">16</span><br>March</div>
+              <div class="agenda-body">
+                <div class="agenda-main" style="color:#35e6a9;">Workshop — Atelier Insertion Pro #1</div>
+                <div class="agenda-sub">🗓 10:00 AM &nbsp;&nbsp; ◔ environ 2 heures &nbsp;&nbsp; ⤴ Novice</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel tall">
+          <div class="panel-title">
+            <span>EVALUATIONS</span>
+            <div class="tools">
+              <div class="tool">HIDE ▾</div>
+              <div class="tool">FEEDBACKS LOGS</div>
+              <div class="tool">MANAGE SLOTS</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel tall">
+          <div class="panel-title"><span>LOGTIME</span></div>
+          <div class="calendar-wrap">
+            <div>
+              <div>Dec (46h15)</div>
+              <div class="mini-grid">
+                <div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini on"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div>
+                <div class="mini on"></div><div class="mini on"></div><div class="mini"></div><div class="mini on"></div><div class="mini"></div><div class="mini on"></div><div class="mini"></div>
+                <div class="mini on"></div><div class="mini on"></div><div class="mini"></div><div class="mini"></div><div class="mini on"></div><div class="mini"></div><div class="mini"></div>
+                <div class="mini on"></div><div class="mini on"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div>
+              </div>
+            </div>
+            <div>
+              <div>Jan (9h09)</div>
+              <div class="mini-grid">
+                <div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div>
+                <div class="mini"></div><div class="mini"></div><div class="mini on"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div>
+                <div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div>
+                <div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div>
+              </div>
+            </div>
+            <div>
+              <div>Feb (0h00)</div>
+              <div class="mini-grid">
+                <div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div>
+                <div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div>
+                <div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div>
+                <div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div>
+              </div>
+            </div>
+            <div>
+              <div>Mar (6h06)</div>
+              <div class="mini-grid">
+                <div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini on"></div>
+                <div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div>
+                <div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div>
+                <div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div><div class="mini"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">
+            <span>EXPERTISES</span>
+            <div class="tools"><div class="tool">EXPERTISES</div><div class="tool">SEE ALL EXPERTISES</div></div>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr auto; gap: 14px 18px; color:#19d8e2; font-weight:700;">
+            <div>Unity</div><div>👍 ★★★★☆</div>
+            <div>C#</div><div>👍 ★★★★☆</div>
+            <div>Python</div><div>👍 ★★★☆☆</div>
+            <div>.net</div><div>👍 ★★☆☆☆</div>
+            <div>Android</div><div>👍 ★★☆☆☆</div>
+            <div>Kotlin</div><div>👍 ★★☆☆☆</div>
+            <div>Javascript</div><div>👍 ★★☆☆☆</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">
+            <span>PROJECTS</span>
+            <div class="tools"><div class="tool">TRANSCRIPT ▾</div><div class="tool">EVALUATION LOGS</div><div class="tool">FEEDBACKS LOGS</div><div class="tool">QUESTS</div></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title"><span>SKILLS</span></div>
+          <div class="skills-graph"></div>
+        </div>
+      </section>
+
+      <div class="bottom-links">
+        <span>API General Terms of Use</span>
+        <span>Declaration on the use of cookies</span>
+        <span>Privacy policy</span>
+        <span>General term of use of the site</span>
+        <span>Rules of procedure</span>
+        <span>Terms of use for video surveillance</span>
+        <span>Legal notices</span>
+      </div>
+    </main>
+  </div>
+
+  <aside class="overlay" id="overlay">
+    <div class="overlay-head" id="overlayHead">
+      <div class="overlay-left"><span style="font-size:13px; opacity:.75;">●</span><span>Friends Tracker</span></div>
+      <div class="overlay-right"><span title="Refresh">↻</span><span id="overlayArrow">▸</span></div>
+    </div>
+    <div class="overlay-body" id="overlayBody" style="display:none;">
+      <div class="toolbar">
+        <div class="row">
+          <input class="input" placeholder="Enter login" />
+          <button class="add-btn" type="button">Add</button>
+        </div>
+        <div class="row">
+          <div style="font-size:13px; color:#aab3bf; font-weight:600;">Sort:</div>
+          <select class="select">
+            <option>Alphabetical (A-Z)</option>
+            <option>Alphabetical (Z-A)</option>
+            <option>Online First</option>
+            <option>Offline First</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="friends">
+        <div class="friend">
+          <div class="friend-avatar"></div>
+          <div class="friend-main">
+            <div class="friend-login">dsemenov</div>
+            <div class="friend-time">(00h00)</div>
+          </div>
+          <div class="friend-right"><span>Offline</span><span class="status-dot offline"></span></div>
+        </div>
+
+        <div class="friend">
+          <div class="friend-avatar" style="background:linear-gradient(135deg,#8597ba,#eef4ff);"></div>
+          <div class="friend-main">
+            <div class="friend-login">afrancois</div>
+            <div class="friend-time">(04h25)</div>
+          </div>
+          <div class="friend-right"><span>e3r7</span><span class="status-dot"></span></div>
+        </div>
+
+        <div class="friend">
+          <div class="friend-avatar" style="background:linear-gradient(135deg,#6f8a65,#cde3d0);"></div>
+          <div class="friend-main">
+            <div class="friend-login">mlaurent</div>
+            <div class="friend-time">(02h10)</div>
+          </div>
+          <div class="friend-right"><span>Offline</span><span class="status-dot offline"></span></div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <script>
+    const head = document.getElementById('overlayHead');
+    const body = document.getElementById('overlayBody');
+    const arrow = document.getElementById('overlayArrow');
+    let open = false;
+
+    head.addEventListener('click', () => {
+      open = !open;
+      body.style.display = open ? 'block' : 'none';
+      arrow.textContent = open ? '▾' : '▸';
+    });
+  </script>
+</body>
+</html>
