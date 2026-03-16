@@ -1,8 +1,20 @@
 {
   "manifest_version": 3,
-  "name": "42 Friends",
-  "version": "0.1",
-  "description": "Add a floating friend tracker system for the 42 intra.",
+  "name": "42 Friends Tracker",
+  "short_name": "42 Friends",
+  "version": "0.1.0",
+  "description": "Floating friend tracker for the 42 intra with synced friend list and local cache.",
+  "minimum_chrome_version": "126",
+  "key": "PASTE_YOUR_CHROME_PUBLIC_KEY_HERE",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://*.intra.42.fr/*",
+    "https://profile.intra.42.fr/*",
+    "https://translate.intra.42.fr/*",
+    "https://meta.intra.42.fr/*"
+  ],
   "content_scripts": [
     {
       "matches": [
@@ -10,24 +22,20 @@
       ],
       "js": [
         "content.js"
-      ]
+      ],
+      "run_at": "document_idle"
     }
   ],
-  "permissions": [
-    "scripting",
-    "activeTab",
-    "tabs",
-    "storage"
-  ],
-  "host_permissions": [
-    "https://profile.intra.42.fr/*",
-    "https://translate.intra.42.fr/*",
-    "https://*.intra.42.fr/*"
-  ],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
   "browser_specific_settings": {
     "gecko": {
-      "id": "42friends@local",
-      "strict_min_version": "109.0",
+      "id": "42-friends@tigran-sargsyan-w.github.io",
+      "strict_min_version": "128.0",
       "data_collection_permissions": {
         "required": [
           "none"
