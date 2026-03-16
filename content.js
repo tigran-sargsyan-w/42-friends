@@ -1,5 +1,8 @@
 // 42 Friends - friends-only floating overlay
 
+const syncStorage = chrome.storage.sync;
+const localStorage = chrome.storage.local;
+
 function addTooltipOnHover(element, title) {
     const tooltip = document.createElement("div");
     tooltip.textContent = title;
@@ -39,19 +42,19 @@ function addTooltipOnHover(element, title) {
 }
 
 async function getFriendList() {
-    const result = await chrome.storage.local.get("friend_list");
+    const result = await syncStorage.get("friend_list");
     return result.friend_list || [];
 }
 
 async function saveFriendList(list) {
-    await chrome.storage.local.set({ friend_list: list });
+    await syncStorage.set({ friend_list: list });
 }
 
 const CACHE_EXPIRY_MS = 5 * 60 * 1000;
 
 async function getCachedFriendData(friend) {
     const cacheKey = `friend_cache_${friend}`;
-    const result = await chrome.storage.local.get(cacheKey);
+    const result = await localStorage.get(cacheKey);
     const cached = result[cacheKey];
 
     if (!cached) {
@@ -61,25 +64,25 @@ async function getCachedFriendData(friend) {
     if (Date.now() - cached.timestamp < CACHE_EXPIRY_MS) {
         return cached.data;
     }
-    await chrome.storage.local.remove(cacheKey);
+    await localStorage.remove(cacheKey);
     return null;
 }
 
 async function setCachedFriendData(friend, data) {
     const cacheKey = `friend_cache_${friend}`;
-    await chrome.storage.local.set({ [cacheKey]: { data, timestamp: Date.now() } });
+    await localStorage.set({ [cacheKey]: { data, timestamp: Date.now() } });
 }
 
 async function clearFriendCache(friend) {
     if (friend) {
-        await chrome.storage.local.remove(`friend_cache_${friend}`);
+        await localStorage.remove(`friend_cache_${friend}`);
         return;
     }
 
-    const all = await chrome.storage.local.get(null);
+    const all = await localStorage.get(null);
     const cacheKeys = Object.keys(all).filter(key => key.startsWith("friend_cache_"));
     if (cacheKeys.length > 0) {
-        await chrome.storage.local.remove(cacheKeys);
+        await localStorage.remove(cacheKeys);
     }
 }
 
@@ -125,7 +128,7 @@ const STORAGE_KEYS = {
 };
 
 async function getOverlayState(key, fallback) {
-    const result = await chrome.storage.local.get(key);
+    const result = await syncStorage.get(key);
     return result[key] !== undefined ? result[key] : fallback;
 }
 
@@ -332,7 +335,7 @@ async function renderFriendsList(content, sortPreference) {
 }
 
 async function createFriendsToolbar(targetPanel, listContainer) {
-    const sortResult = await chrome.storage.local.get("friend_sort");
+    const sortResult = await syncStorage.get("friend_sort");
     const sortPreference = sortResult.friend_sort || "Alphabetical (A-Z)";
     const wrapper = document.createElement("div");
     wrapper.style.cssText = "display:flex;flex-direction:column;gap:12px;margin-bottom:14px;";
@@ -384,7 +387,7 @@ async function createFriendsToolbar(targetPanel, listContainer) {
         friendList.push(newFriend);
         await saveFriendList(friendList);
         input.value = "";
-        const currentSort = await chrome.storage.local.get("friend_sort");
+        const currentSort = await syncStorage.get("friend_sort");
         await renderFriendsList(listContainer, currentSort.friend_sort || "Alphabetical (A-Z)");
     }
 
@@ -426,7 +429,7 @@ async function createFriendsToolbar(targetPanel, listContainer) {
     });
 
     select.onchange = async () => {
-        await chrome.storage.local.set({ friend_sort: select.value });
+        await syncStorage.set({ friend_sort: select.value });
         await renderFriendsList(listContainer, select.value);
     };
 
@@ -448,7 +451,7 @@ async function renderFriendsOverlay(body) {
     body.appendChild(listContainer);
 
     await createFriendsToolbar(toolbarContainer, listContainer);
-    const sortResult = await chrome.storage.local.get("friend_sort");
+    const sortResult = await syncStorage.get("friend_sort");
     await renderFriendsList(listContainer, sortResult.friend_sort || "Alphabetical (A-Z)");
 }
 
@@ -547,7 +550,7 @@ async function buildOverlay() {
 
     refreshButton.onclick = async (e) => {
         e.stopPropagation();
-        clearFriendCache();
+        await clearFriendCache();
         await renderFriendsOverlay(body);
     };
 
@@ -555,7 +558,7 @@ async function buildOverlay() {
         const isCollapsed = body.style.display === "none";
         body.style.display = isCollapsed ? "block" : "none";
         collapseIcon.textContent = isCollapsed ? "▾" : "▸";
-        chrome.storage.local.set({ [STORAGE_KEYS.collapsed]: isCollapsed ? "false" : "true" });
+        syncStorage.set({ [STORAGE_KEYS.collapsed]: isCollapsed ? "false" : "true" });
     });
 
     overlay.appendChild(header);
