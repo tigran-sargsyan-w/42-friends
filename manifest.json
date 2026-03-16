@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "description": "Floating friend tracker for the 42 intra with synced friend list and local cache.",
   "minimum_chrome_version": "126",
-  "key": "PASTE_YOUR_CHROME_PUBLIC_KEY_HERE",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7HZBnhuNWzmxvYw6xzda4dPOrjtk6Gggm/YYtIsYlsOwPYgVxnb3y1/BzdQMkdqFGW8E9ZC2JkWyVvNw8H5QY4IuBNbB2nIrXxCoe2FMRN2tzAc925ajSwYUIo+5dG29JSv4cjhCCgPoW7aBflyqhkOH27vM8n00MqFlGKXsaPQT64oSmasj/t1ClkWndpfaAwcoPsFzF/drFHvDGMNchBtRVbhRaaqMVR9tXFXTVAKPhbF9hc2plENSHNIH1EoLb13hq9bdaZf682bswTMSzBGXxC0KQqWfyJDag/iMrAhxrjCuxYKl1nOqphEbRWntpeMpyF/Cxi5ytbdQv70UkwIDAQAB",
   "permissions": [
     "storage"
   ],
