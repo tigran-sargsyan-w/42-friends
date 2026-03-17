@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "42 Friends Tracker FR",
   "short_name": "42 Friends FR",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Floating friend tracker for the French 42 intra with synced friend list and local cache.",
   "minimum_chrome_version": "126",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA7HZBnhuNWzmxvYw6xzda4dPOrjtk6Gggm/YYtIsYlsOwPYgVxnb3y1/BzdQMkdqFGW8E9ZC2JkWyVvNw8H5QY4IuBNbB2nIrXxCoe2FMRN2tzAc925ajSwYUIo+5dG29JSv4cjhCCgPoW7aBflyqhkOH27vM8n00MqFlGKXsaPQT64oSmasj/t1ClkWndpfaAwcoPsFzF/drFHvDGMNchBtRVbhRaaqMVR9tXFXTVAKPhbF9hc2plENSHNIH1EoLb13hq9bdaZf682bswTMSzBGXxC0KQqWfyJDag/iMrAhxrjCuxYKl1nOqphEbRWntpeMpyF/Cxi5ytbdQv70UkwIDAQAB",
