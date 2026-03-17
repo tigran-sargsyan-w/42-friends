@@ -25,7 +25,7 @@ function addTooltipOnHover(element, title) {
     tooltip.style.fontSize = "12px";
     tooltip.style.pointerEvents = "none";
     tooltip.style.whiteSpace = "nowrap";
-    tooltip.style.zIndex = "100000";
+    tooltip.style.zIndex = "1000000";
     tooltip.style.display = "none";
     document.body.appendChild(tooltip);
 
@@ -66,6 +66,166 @@ function normalizeFriendList(list) {
         .filter(Boolean);
 
     return [...new Set(normalized)];
+}
+
+function getMainCursusInfo(friendObject) {
+    const cursusList = Array.isArray(friendObject.cursus)
+        ? friendObject.cursus
+        : [];
+
+    if (!cursusList.length) {
+        return {
+            cursusLevel: "—"
+        };
+    }
+
+    const mainCursus = cursusList.find(item =>
+        item &&
+        typeof item === "object" &&
+        item["42cursus"]
+    );
+
+    if (!mainCursus) {
+        return {
+            cursusLevel: "—"
+        };
+    }
+
+    const rawLevel = mainCursus["42cursus"]?.level;
+    const parsedLevel = Number(rawLevel);
+
+    return {
+        cursusLevel: Number.isFinite(parsedLevel)
+            ? parsedLevel.toFixed(2)
+            : "—"
+    };
+}
+
+function addProfileHoverCard(targetElement, friend, friendObject) {
+    const { cursusLevel } = getMainCursusInfo(friendObject);
+    const fullName = friendObject.usual_full_name || friendObject.displayname || friend;
+    const imageUrl = friendObject.image?.link || "";
+
+    const card = document.createElement("div");
+    card.style.position = "fixed";
+    card.style.zIndex = "1000000";
+    card.style.display = "none";
+    card.style.pointerEvents = "none";
+    card.style.width = "300px";
+    card.style.padding = "16px";
+    card.style.borderRadius = "18px";
+    card.style.background = "rgba(18, 22, 29, .98)";
+    card.style.border = "1px solid rgba(255,255,255,.08)";
+    card.style.boxShadow = "0 18px 40px rgba(0,0,0,.38)";
+    card.style.backdropFilter = "blur(10px)";
+    card.style.color = "#f5f7fa";
+    card.style.fontFamily = "Inter, Arial, sans-serif";
+
+    card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+            <div style="
+                width:64px;
+                height:64px;
+                border-radius:50%;
+                background-image:url('${imageUrl}');
+                background-size:cover;
+                background-position:center;
+                background-color:#2a303c;
+                flex:0 0 auto;
+                border:1px solid rgba(255,255,255,.08);
+            "></div>
+
+            <div style="min-width:0;display:flex;flex-direction:column;gap:4px;">
+                <div style="
+                    font-size:16px;
+                    font-weight:800;
+                    color:#ffffff;
+                    line-height:1.2;
+                    word-break:break-word;
+                ">
+                    ${fullName}
+                </div>
+
+                <div style="
+                    font-size:13px;
+                    color:#9fb0c3;
+                    line-height:1.2;
+                    word-break:break-word;
+                ">
+                    ${friend}
+                </div>
+            </div>
+        </div>
+
+        <div style="
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:12px;
+            padding:10px 12px;
+            border-radius:12px;
+            background:rgba(255,255,255,.04);
+            border:1px solid rgba(255,255,255,.05);
+        ">
+            <span style="
+                font-size:13px;
+                color:#8fa0b3;
+                font-weight:600;
+            ">
+                level
+            </span>
+
+            <span style="
+                font-size:15px;
+                color:#ffffff;
+                font-weight:800;
+            ">
+                ${cursusLevel}
+            </span>
+        </div>
+    `;
+
+    document.body.appendChild(card);
+
+    function placeCard(event) {
+        const offsetX = 16;
+        const offsetY = 16;
+        const cardWidth = 300;
+        const estimatedHeight = 140;
+
+        let left = event.clientX + offsetX;
+        let top = event.clientY + offsetY;
+
+        if (left + cardWidth > window.innerWidth - 12) {
+            left = event.clientX - cardWidth - 12;
+        }
+
+        if (top + estimatedHeight > window.innerHeight - 12) {
+            top = event.clientY - estimatedHeight - 12;
+        }
+
+        card.style.left = `${Math.max(8, left)}px`;
+        card.style.top = `${Math.max(8, top)}px`;
+    }
+
+    const onMouseEnter = (event) => {
+        card.style.display = "block";
+        placeCard(event);
+    };
+
+    const onMouseMove = (event) => {
+        placeCard(event);
+    };
+
+    const onMouseLeave = () => {
+        card.style.display = "none";
+    };
+
+    targetElement.addEventListener("mouseenter", onMouseEnter);
+    targetElement.addEventListener("mousemove", onMouseMove);
+    targetElement.addEventListener("mouseleave", onMouseLeave);
+
+    return card;
 }
 
 async function migrateStorageIfNeeded() {
@@ -325,7 +485,15 @@ function displayFriend(content, friend, today, friendObject, logTimeObject, isPi
             border-radius:50%;
             background-position:50% 50%;
             flex:0 0 auto;
+            cursor:default;
         `;
+
+        addProfileHoverCard(photo, friend, friendObject);
+
+        photo.addEventListener("click", (event) => {
+            event.stopPropagation();
+            window.open(`https://profile.intra.42.fr/users/${friend}`, "_blank");
+        });
 
         const details = document.createElement("div");
         details.style.cssText = "display:flex;flex-direction:column;gap:4px;min-width:0;";
