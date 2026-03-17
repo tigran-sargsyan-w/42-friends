@@ -3,6 +3,16 @@
 const syncStorage = chrome.storage.sync;
 const localStorage = chrome.storage.local;
 
+const STORAGE_SCHEMA_VERSION = 1;
+
+const SYNC_KEYS = {
+    schemaVersion: "schema_version",
+    friendList: "friend_list",
+    friendSort: "friend_sort",
+    overlayCollapsed: "tf_overlay_collapsed",
+    overlayWidth: "tf_overlay_width"
+};
+
 function addTooltipOnHover(element, title) {
     const tooltip = document.createElement("div");
     tooltip.textContent = title;
@@ -29,9 +39,9 @@ function addTooltipOnHover(element, title) {
         tooltip.style.display = "none";
     };
 
-    const onMouseMove = (e) => {
-        tooltip.style.left = `${e.pageX + 10}px`;
-        tooltip.style.top = `${e.pageY + 10}px`;
+    const onMouseMove = (event) => {
+        tooltip.style.left = `${event.pageX + 10}px`;
+        tooltip.style.top = `${event.pageY + 10}px`;
     };
 
     element.addEventListener("mouseenter", onMouseEnter);
@@ -41,13 +51,69 @@ function addTooltipOnHover(element, title) {
     return tooltip;
 }
 
+function normalizeFriendLogin(value) {
+    return String(value || "").trim().toLowerCase();
+}
+
+function normalizeFriendList(list) {
+    if (!Array.isArray(list)) {
+        return [];
+    }
+
+    const normalized = list
+        .map(normalizeFriendLogin)
+        .filter(Boolean);
+
+    return [...new Set(normalized)];
+}
+
+async function migrateStorageIfNeeded() {
+    const syncResult = await syncStorage.get(null);
+    const currentVersion = Number(syncResult[SYNC_KEYS.schemaVersion] || 0);
+
+    if (currentVersion >= STORAGE_SCHEMA_VERSION) {
+        return;
+    }
+
+    const updates = {};
+
+    if (currentVersion < 1) {
+        const migratedFriendList = normalizeFriendList(syncResult[SYNC_KEYS.friendList]);
+        updates[SYNC_KEYS.friendList] = migratedFriendList;
+
+        const currentSort = syncResult[SYNC_KEYS.friendSort];
+        const allowedSortValues = [
+            "Alphabetical (A-Z)",
+            "Alphabetical (Z-A)",
+            "Online First",
+            "Offline First"
+        ];
+        updates[SYNC_KEYS.friendSort] = allowedSortValues.includes(currentSort)
+            ? currentSort
+            : "Alphabetical (A-Z)";
+
+        const collapsedValue = syncResult[SYNC_KEYS.overlayCollapsed];
+        updates[SYNC_KEYS.overlayCollapsed] = collapsedValue === "true" ? "true" : "false";
+
+        const widthValue = syncResult[SYNC_KEYS.overlayWidth];
+        const parsedWidth = Number(widthValue);
+        updates[SYNC_KEYS.overlayWidth] = Number.isFinite(parsedWidth) && parsedWidth >= 320
+            ? String(parsedWidth)
+            : "360";
+    }
+
+    updates[SYNC_KEYS.schemaVersion] = STORAGE_SCHEMA_VERSION;
+    await syncStorage.set(updates);
+}
+
 async function getFriendList() {
-    const result = await syncStorage.get("friend_list");
-    return result.friend_list || [];
+    const result = await syncStorage.get(SYNC_KEYS.friendList);
+    return normalizeFriendList(result[SYNC_KEYS.friendList]);
 }
 
 async function saveFriendList(list) {
-    await syncStorage.set({ friend_list: list });
+    const normalizedList = normalizeFriendList(list);
+    await syncStorage.set({ [SYNC_KEYS.friendList]: normalizedList });
 }
 
 const CACHE_EXPIRY_MS = 5 * 60 * 1000;
@@ -64,13 +130,19 @@ async function getCachedFriendData(friend) {
     if (Date.now() - cached.timestamp < CACHE_EXPIRY_MS) {
         return cached.data;
     }
+
     await localStorage.remove(cacheKey);
     return null;
 }
 
 async function setCachedFriendData(friend, data) {
     const cacheKey = `friend_cache_${friend}`;
-    await localStorage.set({ [cacheKey]: { data, timestamp: Date.now() } });
+    await localStorage.set({
+        [cacheKey]: {
+            data,
+            timestamp: Date.now()
+        }
+    });
 }
 
 async function clearFriendCache(friend) {
@@ -96,7 +168,7 @@ async function fetchFriendData(friend, retries = 2) {
         try {
             const friendObject = await fetch(`https://profile.intra.42.fr/users/${friend}`, {
                 credentials: "include"
-            }).then(res => res.json());
+            }).then(response => response.json());
 
             if (!Object.keys(friendObject).length) {
                 return null;
@@ -104,9 +176,14 @@ async function fetchFriendData(friend, retries = 2) {
 
             const logTimeObject = await fetch(`https://translate.intra.42.fr/users/${friend}/locations_stats.json`, {
                 credentials: "include"
-            }).then(res => res.json());
+            }).then(response => response.json());
 
-            const data = { friend, friend_object: friendObject, log_time_object: logTimeObject };
+            const data = {
+                friend,
+                friend_object: friendObject,
+                log_time_object: logTimeObject
+            };
+
             await setCachedFriendData(friend, data);
             return data;
         } catch (error) {
@@ -114,6 +191,7 @@ async function fetchFriendData(friend, retries = 2) {
                 console.warn(`Failed to load data for ${friend} after ${retries + 1} attempts`, error);
                 throw error;
             }
+
             await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
         }
     }
@@ -122,10 +200,6 @@ async function fetchFriendData(friend, retries = 2) {
 }
 
 const OVERLAY_ID = "tf-friends-overlay";
-const STORAGE_KEYS = {
-    collapsed: "tf_overlay_collapsed",
-    width: "tf_overlay_width"
-};
 
 async function getOverlayState(key, fallback) {
     const result = await syncStorage.get(key);
@@ -155,7 +229,9 @@ function displayFriend(content, friend, today, friendObject, logTimeObject) {
             item.style.background = "#222732";
             item.style.transform = "translateY(0)";
         });
-        item.addEventListener("click", () => window.open(`https://profile.intra.42.fr/users/${friend}`, "_blank"));
+        item.addEventListener("click", () => {
+            window.open(`https://profile.intra.42.fr/users/${friend}`, "_blank");
+        });
 
         const photo = document.createElement("div");
         photo.className = "user-profile-picture visible-sidebars";
@@ -309,6 +385,9 @@ async function renderFriendsList(content, sortPreference) {
             case "Offline First":
                 friendDataList.sort((a, b) => (a.friend_object.location ? 1 : 0) - (b.friend_object.location ? 1 : 0));
                 break;
+            default:
+                friendDataList.sort((a, b) => a.friend.localeCompare(b.friend));
+                break;
         }
 
         content.innerHTML = "";
@@ -334,9 +413,14 @@ async function renderFriendsList(content, sortPreference) {
     }
 }
 
+async function getFriendSortPreference() {
+    const result = await syncStorage.get(SYNC_KEYS.friendSort);
+    return result[SYNC_KEYS.friendSort] || "Alphabetical (A-Z)";
+}
+
 async function createFriendsToolbar(targetPanel, listContainer) {
-    const sortResult = await syncStorage.get("friend_sort");
-    const sortPreference = sortResult.friend_sort || "Alphabetical (A-Z)";
+    const sortPreference = await getFriendSortPreference();
+
     const wrapper = document.createElement("div");
     wrapper.style.cssText = "display:flex;flex-direction:column;gap:12px;margin-bottom:14px;";
 
@@ -372,7 +456,7 @@ async function createFriendsToolbar(targetPanel, listContainer) {
     `;
 
     async function addFriend() {
-        const newFriend = input.value.trim().toLowerCase();
+        const newFriend = normalizeFriendLogin(input.value);
         const friendList = await getFriendList();
 
         if (!newFriend) {
@@ -387,8 +471,9 @@ async function createFriendsToolbar(targetPanel, listContainer) {
         friendList.push(newFriend);
         await saveFriendList(friendList);
         input.value = "";
-        const currentSort = await syncStorage.get("friend_sort");
-        await renderFriendsList(listContainer, currentSort.friend_sort || "Alphabetical (A-Z)");
+
+        const currentSort = await getFriendSortPreference();
+        await renderFriendsList(listContainer, currentSort);
     }
 
     input.addEventListener("keydown", async (event) => {
@@ -429,7 +514,7 @@ async function createFriendsToolbar(targetPanel, listContainer) {
     });
 
     select.onchange = async () => {
-        await syncStorage.set({ friend_sort: select.value });
+        await syncStorage.set({ [SYNC_KEYS.friendSort]: select.value });
         await renderFriendsList(listContainer, select.value);
     };
 
@@ -451,8 +536,8 @@ async function renderFriendsOverlay(body) {
     body.appendChild(listContainer);
 
     await createFriendsToolbar(toolbarContainer, listContainer);
-    const sortResult = await syncStorage.get("friend_sort");
-    await renderFriendsList(listContainer, sortResult.friend_sort || "Alphabetical (A-Z)");
+    const currentSort = await getFriendSortPreference();
+    await renderFriendsList(listContainer, currentSort);
 }
 
 async function buildOverlay() {
@@ -460,8 +545,8 @@ async function buildOverlay() {
         return document.getElementById(OVERLAY_ID);
     }
 
-    const collapsed = await getOverlayState(STORAGE_KEYS.collapsed, "false") === "true";
-    const savedWidth = await getOverlayState(STORAGE_KEYS.width, "360");
+    const collapsed = await getOverlayState(SYNC_KEYS.overlayCollapsed, "false") === "true";
+    const savedWidth = await getOverlayState(SYNC_KEYS.overlayWidth, "360");
 
     const overlay = document.createElement("div");
     overlay.id = OVERLAY_ID;
@@ -548,17 +633,19 @@ async function buildOverlay() {
         background:linear-gradient(180deg,rgba(28,31,39,.98),rgba(16,18,24,.98));
     `;
 
-    refreshButton.onclick = async (e) => {
-        e.stopPropagation();
+    refreshButton.onclick = async (event) => {
+        event.stopPropagation();
         await clearFriendCache();
         await renderFriendsOverlay(body);
     };
 
-    header.addEventListener("click", () => {
+    header.addEventListener("click", async () => {
         const isCollapsed = body.style.display === "none";
         body.style.display = isCollapsed ? "block" : "none";
         collapseIcon.textContent = isCollapsed ? "▾" : "▸";
-        syncStorage.set({ [STORAGE_KEYS.collapsed]: isCollapsed ? "false" : "true" });
+        await syncStorage.set({
+            [SYNC_KEYS.overlayCollapsed]: isCollapsed ? "false" : "true"
+        });
     });
 
     overlay.appendChild(header);
@@ -566,7 +653,7 @@ async function buildOverlay() {
     document.body.appendChild(overlay);
 
     makeOverlayDraggable(overlay, header);
-    renderFriendsOverlay(body);
+    await renderFriendsOverlay(body);
 
     return overlay;
 }
@@ -582,6 +669,7 @@ function makeOverlayDraggable(overlay, dragHandle) {
         if (event.target.tagName === "BUTTON") {
             return;
         }
+
         isDragging = true;
         startX = event.clientX;
         startY = event.clientY;
@@ -685,7 +773,7 @@ function getProfileLoginContext() {
 
     const loginFromData = (loginElement.getAttribute("data-login") || "").trim();
     const loginFromPath = decodeURIComponent(pathMatch[1] || "").trim();
-    const login = (loginFromData || loginFromPath).toLowerCase();
+    const login = normalizeFriendLogin(loginFromData || loginFromPath);
 
     if (!login) {
         return null;
@@ -699,6 +787,7 @@ async function refreshOverlayIfPresent() {
     if (!overlayBody) {
         return;
     }
+
     await renderFriendsOverlay(overlayBody);
 }
 
@@ -737,7 +826,7 @@ async function renderProfileFriendButton() {
         event.preventDefault();
         event.stopPropagation();
 
-        const targetLogin = (button.dataset.login || "").trim().toLowerCase();
+        const targetLogin = normalizeFriendLogin(button.dataset.login);
         if (!targetLogin) {
             return;
         }
@@ -746,7 +835,7 @@ async function renderProfileFriendButton() {
         const alreadyFriend = currentList.includes(targetLogin);
 
         if (alreadyFriend) {
-            const nextList = currentList.filter((value) => value !== targetLogin);
+            const nextList = currentList.filter(value => value !== targetLogin);
             await saveFriendList(nextList);
             await clearFriendCache(targetLogin);
         } else {
@@ -776,13 +865,17 @@ function initProfileFriendButton() {
     if (profileObserverInitialized) {
         return;
     }
+
     profileObserverInitialized = true;
 
     const observer = new MutationObserver(() => {
         updateProfileFriendButton();
     });
 
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, {
+        childList: true,
+        subtree: true
+    });
 
     let previousUrl = window.location.href;
     profileUrlWatcher = window.setInterval(() => {
@@ -799,9 +892,10 @@ function initProfileFriendButton() {
     updateProfileFriendButton();
 }
 
-function init() {
+async function init() {
+    await migrateStorageIfNeeded();
     injectSharedStyles();
-    buildOverlay();
+    await buildOverlay();
     initProfileFriendButton();
 }
 
