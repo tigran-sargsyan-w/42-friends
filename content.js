@@ -3,11 +3,12 @@
 const syncStorage = chrome.storage.sync;
 const localStorage = chrome.storage.local;
 
-const STORAGE_SCHEMA_VERSION = 1;
+const STORAGE_SCHEMA_VERSION = 2;
 
 const SYNC_KEYS = {
     schemaVersion: "schema_version",
     friendList: "friend_list",
+    pinnedFriends: "pinned_friends",
     friendSort: "friend_sort",
     overlayCollapsed: "tf_overlay_collapsed",
     overlayWidth: "tf_overlay_width"
@@ -102,6 +103,17 @@ async function migrateStorageIfNeeded() {
             : "360";
     }
 
+    if (currentVersion < 2) {
+        const friendList = normalizeFriendList(
+            updates[SYNC_KEYS.friendList] !== undefined
+                ? updates[SYNC_KEYS.friendList]
+                : syncResult[SYNC_KEYS.friendList]
+        );
+
+        const currentPinned = normalizeFriendList(syncResult[SYNC_KEYS.pinnedFriends]);
+        updates[SYNC_KEYS.pinnedFriends] = currentPinned.filter(friend => friendList.includes(friend));
+    }
+
     updates[SYNC_KEYS.schemaVersion] = STORAGE_SCHEMA_VERSION;
     await syncStorage.set(updates);
 }
@@ -114,6 +126,27 @@ async function getFriendList() {
 async function saveFriendList(list) {
     const normalizedList = normalizeFriendList(list);
     await syncStorage.set({ [SYNC_KEYS.friendList]: normalizedList });
+}
+
+async function getPinnedFriendList() {
+    const result = await syncStorage.get(SYNC_KEYS.pinnedFriends);
+    return normalizeFriendList(result[SYNC_KEYS.pinnedFriends]);
+}
+
+async function savePinnedFriendList(list) {
+    const normalizedList = normalizeFriendList(list);
+    await syncStorage.set({ [SYNC_KEYS.pinnedFriends]: normalizedList });
+}
+
+async function cleanupPinnedFriends(friendList) {
+    const pinnedList = await getPinnedFriendList();
+    const cleanedPinnedList = pinnedList.filter(friend => friendList.includes(friend));
+
+    if (cleanedPinnedList.length !== pinnedList.length) {
+        await savePinnedFriendList(cleanedPinnedList);
+    }
+
+    return cleanedPinnedList;
 }
 
 const CACHE_EXPIRY_MS = 5 * 60 * 1000;
@@ -206,7 +239,56 @@ async function getOverlayState(key, fallback) {
     return result[key] !== undefined ? result[key] : fallback;
 }
 
-function displayFriend(content, friend, today, friendObject, logTimeObject) {
+function sortFriendDataList(friendDataList, sortPreference) {
+    switch (sortPreference) {
+        case "Alphabetical (A-Z)":
+            friendDataList.sort((a, b) => a.friend.localeCompare(b.friend));
+            break;
+        case "Alphabetical (Z-A)":
+            friendDataList.sort((a, b) => b.friend.localeCompare(a.friend));
+            break;
+        case "Online First":
+            friendDataList.sort((a, b) => {
+                const onlineDelta = (b.friend_object.location ? 1 : 0) - (a.friend_object.location ? 1 : 0);
+                if (onlineDelta !== 0) {
+                    return onlineDelta;
+                }
+                return a.friend.localeCompare(b.friend);
+            });
+            break;
+        case "Offline First":
+            friendDataList.sort((a, b) => {
+                const offlineDelta = (a.friend_object.location ? 1 : 0) - (b.friend_object.location ? 1 : 0);
+                if (offlineDelta !== 0) {
+                    return offlineDelta;
+                }
+                return a.friend.localeCompare(b.friend);
+            });
+            break;
+        default:
+            friendDataList.sort((a, b) => a.friend.localeCompare(b.friend));
+            break;
+    }
+
+    return friendDataList;
+}
+
+function createSectionTitle(title) {
+    const sectionTitle = document.createElement("div");
+    sectionTitle.textContent = title;
+    sectionTitle.style.cssText = `
+        font-size:12px;
+        font-weight:800;
+        letter-spacing:.08em;
+        text-transform:uppercase;
+        color:#8f9bab;
+        margin:8px 0 10px;
+        padding:0 4px;
+    `;
+    return sectionTitle;
+}
+
+function displayFriend(content, friend, today, friendObject, logTimeObject, isPinned) {
     try {
         const item = document.createElement("div");
         item.style.cssText = `
@@ -218,15 +300,15 @@ function displayFriend(content, friend, today, friendObject, logTimeObject) {
             transition:background .2s ease, transform .2s ease;
             padding:10px 12px;
             border-radius:14px;
-            background:#222732;
-            border:1px solid rgba(255,255,255,.04);
+            background:${isPinned ? "#283142" : "#222732"};
+            border:1px solid ${isPinned ? "rgba(255, 209, 102, .22)" : "rgba(255,255,255,.04)"};
         `;
         item.addEventListener("mouseover", () => {
-            item.style.background = "#2a303c";
+            item.style.background = isPinned ? "#2d384d" : "#2a303c";
             item.style.transform = "translateY(-1px)";
         });
         item.addEventListener("mouseout", () => {
-            item.style.background = "#222732";
+            item.style.background = isPinned ? "#283142" : "#222732";
             item.style.transform = "translateY(0)";
         });
         item.addEventListener("click", () => {
@@ -249,8 +331,19 @@ function displayFriend(content, friend, today, friendObject, logTimeObject) {
         details.style.cssText = "display:flex;flex-direction:column;gap:4px;min-width:0;";
 
         const login = document.createElement("div");
-        login.textContent = friend;
-        login.style.cssText = "font-weight:700;font-size:14px;color:#f5f7fa;";
+        login.style.cssText = "display:flex;align-items:center;gap:6px;font-weight:700;font-size:14px;color:#f5f7fa;";
+
+        const loginText = document.createElement("span");
+        loginText.textContent = friend;
+
+        login.appendChild(loginText);
+
+        if (isPinned) {
+            const pinnedBadge = document.createElement("span");
+            pinnedBadge.textContent = "📌";
+            pinnedBadge.style.cssText = "font-size:12px;opacity:.95;";
+            login.appendChild(pinnedBadge);
+        }
 
         const infoDisplay = document.createElement("div");
         infoDisplay.style.cssText = "font-size:12px;color:#aab3bf;";
@@ -291,6 +384,34 @@ function displayFriend(content, friend, today, friendObject, logTimeObject) {
             box-shadow:0 0 0 3px rgba(255,255,255,.05);
         `;
 
+        const pinButton = document.createElement("button");
+        pinButton.type = "button";
+        pinButton.textContent = "📌";
+        pinButton.style.cssText = `
+            appearance:none;
+            border:none;
+            background:transparent;
+            color:${isPinned ? "#ffd166" : "#93a0b1"};
+            font-size:14px;
+            cursor:pointer;
+            padding:0 4px;
+            margin-left:2px;
+        `;
+        addTooltipOnHover(pinButton, isPinned ? "Unpin friend" : "Pin friend");
+        pinButton.onclick = async (event) => {
+            event.stopPropagation();
+
+            const pinnedList = await getPinnedFriendList();
+            const alreadyPinned = pinnedList.includes(friend);
+
+            const updatedPinnedList = alreadyPinned
+                ? pinnedList.filter(value => value !== friend)
+                : [...pinnedList, friend];
+
+            await savePinnedFriendList(updatedPinnedList);
+            await renderFriendsOverlay(content.closest(".tf-friends-body"));
+        };
+
         const deleteFriend = document.createElement("button");
         deleteFriend.type = "button";
         deleteFriend.textContent = "✕";
@@ -302,7 +423,7 @@ function displayFriend(content, friend, today, friendObject, logTimeObject) {
             font-size:14px;
             cursor:pointer;
             padding:0 4px;
-            margin-left:6px;
+            margin-left:2px;
         `;
         addTooltipOnHover(deleteFriend, "Delete friend");
         deleteFriend.onclick = async (event) => {
@@ -315,15 +436,24 @@ function displayFriend(content, friend, today, friendObject, logTimeObject) {
             const currentList = await getFriendList();
             const updatedList = currentList.filter(value => value !== friend);
             await saveFriendList(updatedList);
+
+            const pinnedList = await getPinnedFriendList();
+            const updatedPinnedList = pinnedList.filter(value => value !== friend);
+            await savePinnedFriendList(updatedPinnedList);
+
             item.remove();
 
             if (!updatedList.length) {
                 await renderFriendsOverlay(content.closest(".tf-friends-body"));
+                return;
             }
+
+            await renderFriendsOverlay(content.closest(".tf-friends-body"));
         };
 
         clusterBox.appendChild(clusterPosition);
         clusterBox.appendChild(status);
+        clusterBox.appendChild(pinButton);
         clusterBox.appendChild(deleteFriend);
 
         item.appendChild(photo);
@@ -372,31 +502,46 @@ async function renderFriendsList(content, sortPreference) {
             friendList = validFriends;
         }
 
-        switch (sortPreference) {
-            case "Alphabetical (A-Z)":
-                friendDataList.sort((a, b) => a.friend.localeCompare(b.friend));
-                break;
-            case "Alphabetical (Z-A)":
-                friendDataList.sort((a, b) => b.friend.localeCompare(a.friend));
-                break;
-            case "Online First":
-                friendDataList.sort((a, b) => (b.friend_object.location ? 1 : 0) - (a.friend_object.location ? 1 : 0));
-                break;
-            case "Offline First":
-                friendDataList.sort((a, b) => (a.friend_object.location ? 1 : 0) - (b.friend_object.location ? 1 : 0));
-                break;
-            default:
-                friendDataList.sort((a, b) => a.friend.localeCompare(b.friend));
-                break;
-        }
+        const pinnedList = await cleanupPinnedFriends(friendList);
+
+        const pinnedFriends = friendDataList.filter(data => pinnedList.includes(data.friend));
+        const regularFriends = friendDataList.filter(data => !pinnedList.includes(data.friend));
+
+        sortFriendDataList(pinnedFriends, sortPreference);
+        sortFriendDataList(regularFriends, sortPreference);
 
         content.innerHTML = "";
+
         const list = document.createElement("div");
         list.style.cssText = "max-height:420px;overflow:auto;padding-right:4px;";
         content.appendChild(list);
 
-        for (const data of friendDataList) {
-            displayFriend(list, data.friend, today, data.friend_object, data.log_time_object);
+        if (pinnedFriends.length) {
+            list.appendChild(createSectionTitle("Pinned"));
+            for (const data of pinnedFriends) {
+                displayFriend(
+                    list,
+                    data.friend,
+                    today,
+                    data.friend_object,
+                    data.log_time_object,
+                    true
+                );
+            }
+        }
+
+        if (regularFriends.length) {
+            list.appendChild(createSectionTitle("Friends"));
+            for (const data of regularFriends) {
+                displayFriend(
+                    list,
+                    data.friend,
+                    today,
+                    data.friend_object,
+                    data.log_time_object,
+                    false
+                );
+            }
         }
     } catch (error) {
         content.innerHTML = `
@@ -838,6 +983,10 @@ async function renderProfileFriendButton() {
             const nextList = currentList.filter(value => value !== targetLogin);
             await saveFriendList(nextList);
             await clearFriendCache(targetLogin);
+
+            const pinnedList = await getPinnedFriendList();
+            const nextPinnedList = pinnedList.filter(value => value !== targetLogin);
+            await savePinnedFriendList(nextPinnedList);
         } else {
             const nextList = [...currentList, targetLogin];
             await saveFriendList(nextList);
