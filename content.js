@@ -25,7 +25,7 @@ function addTooltipOnHover(element, title) {
     tooltip.style.fontSize = "12px";
     tooltip.style.pointerEvents = "none";
     tooltip.style.whiteSpace = "nowrap";
-    tooltip.style.zIndex = "10001";
+    tooltip.style.zIndex = "100000";
     tooltip.style.display = "none";
     document.body.appendChild(tooltip);
 
