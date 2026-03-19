@@ -28,55 +28,55 @@ const inlineCssPlugin = {
 };
 
 /**
- * Copy static assets to dist folder to make it a complete extension package.
+ * Copy static assets to build folder to make it a complete extension package.
  */
 async function copyStaticAssets() {
-    // Ensure dist directory exists
-    await fs.promises.mkdir("dist", { recursive: true });
+    // Ensure build directory exists
+    await fs.promises.mkdir("build", { recursive: true });
 
     // Read and transform manifest.json
     const manifest = JSON.parse(await fs.promises.readFile("manifest.json", "utf8"));
 
-    // Update content_scripts paths: remove "dist/" prefix since we're now in dist/
+    // Update content_scripts paths: remove "build/" prefix since we're now in build/
     if (manifest.content_scripts) {
         for (const script of manifest.content_scripts) {
             if (script.js) {
-                script.js = script.js.map(p => p.replace(/^dist\//, ""));
+                script.js = script.js.map(p => p.replace(/^build\//, ""));
             }
             if (script.css) {
-                script.css = script.css.map(p => p.replace(/^dist\//, ""));
+                script.css = script.css.map(p => p.replace(/^build\//, ""));
             }
         }
     }
 
-    // Write transformed manifest to dist/
+    // Write transformed manifest to build/
     await fs.promises.writeFile(
-        "dist/manifest.json",
+        "build/manifest.json",
         JSON.stringify(manifest, null, 2)
     );
-    console.log("Copied: dist/manifest.json");
+    console.log("Copied: build/manifest.json");
 
     // Copy icons directory
     const iconsDir = "icons";
-    const distIconsDir = "dist/icons";
+    const buildIconsDir = "build/icons";
 
     if (fs.existsSync(iconsDir)) {
-        await fs.promises.mkdir(distIconsDir, { recursive: true });
+        await fs.promises.mkdir(buildIconsDir, { recursive: true });
         const icons = await fs.promises.readdir(iconsDir);
         for (const icon of icons) {
             await fs.promises.copyFile(
                 path.join(iconsDir, icon),
-                path.join(distIconsDir, icon)
+                path.join(buildIconsDir, icon)
             );
         }
-        console.log(`Copied: dist/icons/ (${icons.length} files)`);
+        console.log(`Copied: build/icons/ (${icons.length} files)`);
     }
 }
 
 const buildOptions = {
     entryPoints: ["src/content/index.js"],
     bundle: true,
-    outfile: "dist/content.js",
+    outfile: "build/content.js",
     format: "iife",
     target: ["chrome126", "firefox128"],
     minify: false,
@@ -93,5 +93,5 @@ if (isWatch) {
 } else {
     await esbuild.build(buildOptions);
     await copyStaticAssets();
-    console.log("Build complete: dist/");
+    console.log("Build complete: build/");
 }

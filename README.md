@@ -7,10 +7,11 @@ A Chrome extension that adds a friend system floating overlay to the 42 intra.
 ### Chrome
 
 1. Download or clone this repository
-2. Open Chrome and navigate to `chrome://extensions`
-3. Enable **Developer mode** (toggle in top right)
-4. Click **Load unpacked** and select the extension folder
-5. Visit https://profile.intra.42.fr to use the extension
+2. Run `npm install` and `npm run build`
+3. Open Chrome and navigate to `chrome://extensions`
+4. Enable **Developer mode** (toggle in top right)
+5. Click **Load unpacked** and select the `build/` folder
+6. Visit https://profile.intra.42.fr to use the extension
 
 ### Firefox
 
