@@ -21,7 +21,7 @@
         "https://*.intra.42.fr/*"
       ],
       "js": [
-        "content.js"
+        "dist/content.js"
       ],
       "run_at": "document_idle"
     }
