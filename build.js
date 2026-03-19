@@ -96,8 +96,21 @@ async function copyStaticAssets() {
     // Ensure build directory exists
     await fs.promises.mkdir("build", { recursive: true });
 
-    // Read and transform manifest.json
+    // Read manifest.json
     const manifest = JSON.parse(await fs.promises.readFile("manifest.json", "utf8"));
+
+    // Sync version from package.json (single source of truth)
+    const versionChanged = manifest.version !== pkg.version;
+    manifest.version = pkg.version;
+
+    // Write synced version back to root manifest.json
+    if (versionChanged) {
+        await fs.promises.writeFile(
+            "manifest.json",
+            JSON.stringify(manifest, null, 2) + "\n"
+        );
+        log("🔄", "Synced", "manifest.json", `→ v${pkg.version}`);
+    }
 
     // Update content_scripts paths: remove "build/" prefix since we're now in build/
     if (manifest.content_scripts) {
