@@ -3,6 +3,68 @@ import * as fs from "fs";
 import * as path from "path";
 
 const isWatch = process.argv.includes("--watch");
+const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+
+// ─────────────────────────────────────────────────────────────
+// Console Output Formatting
+// ─────────────────────────────────────────────────────────────
+
+const c = {
+    reset: "\x1b[0m",
+    bold: "\x1b[1m",
+    dim: "\x1b[2m",
+    cyan: "\x1b[36m",
+    green: "\x1b[32m",
+    yellow: "\x1b[33m",
+    red: "\x1b[31m",
+    magenta: "\x1b[35m",
+    blue: "\x1b[34m",
+};
+
+const LINE = "━".repeat(40);
+
+function formatSize(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+function formatTime(ms) {
+    return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(2)} s`;
+}
+
+function log(icon, label, value = "", extra = "") {
+    const paddedLabel = label.padEnd(10);
+    const coloredValue = value ? `${c.bold}${value}${c.reset}` : "";
+    const dimExtra = extra ? `${c.dim}${extra}${c.reset}` : "";
+    console.log(`${icon} ${c.cyan}${paddedLabel}${c.reset}${coloredValue} ${dimExtra}`);
+}
+
+function header() {
+    console.log(`\n${c.dim}${LINE}${c.reset}`);
+    console.log(`🚀 ${c.bold}42 Friends FR${c.reset} ${c.dim}— Build started${c.reset}`);
+    log("🏷️ ", "Version", pkg.version);
+    console.log(`${c.dim}${LINE}${c.reset}`);
+}
+
+function success(duration) {
+    console.log(`${c.dim}${LINE}${c.reset}`);
+    log("✅", "Success", "Build complete", `in ${formatTime(duration)}`);
+    log("📁", "Output", "build/");
+    console.log(`${c.dim}${LINE}${c.reset}\n`);
+}
+
+function watchMode() {
+    console.log(`${c.dim}${LINE}${c.reset}`);
+    log("👀", "Watching", "for changes...");
+    console.log(`${c.dim}${LINE}${c.reset}\n`);
+}
+
+function error(err) {
+    console.log(`${c.dim}${LINE}${c.reset}`);
+    console.log(`❌ ${c.red}${c.bold}Build failed${c.reset}`);
+    console.log(`${c.dim}${err.message || err}${c.reset}`);
+    console.log(`${c.dim}${LINE}${c.reset}\n`);
+}
 
 /**
  * Custom plugin to inline CSS as a string export.
@@ -54,7 +116,7 @@ async function copyStaticAssets() {
         "build/manifest.json",
         JSON.stringify(manifest, null, 2)
     );
-    console.log("Copied: build/manifest.json");
+    log("📄", "Copied", "manifest.json");
 
     // Copy icons directory
     const iconsDir = "icons";
@@ -69,7 +131,7 @@ async function copyStaticAssets() {
                 path.join(buildIconsDir, icon)
             );
         }
-        console.log(`Copied: build/icons/ (${icons.length} files)`);
+        log("🖼️ ", "Copied", "icons/", `${icons.length} files`);
     }
 }
 
@@ -82,16 +144,35 @@ const buildOptions = {
     minify: false,
     sourcemap: false,
     plugins: [inlineCssPlugin],
-    logLevel: "info"
+    logLevel: "silent",
+    metafile: true,
 };
 
-if (isWatch) {
-    const ctx = await esbuild.context(buildOptions);
-    await copyStaticAssets();
-    await ctx.watch();
-    console.log("Watching for changes...");
-} else {
-    await esbuild.build(buildOptions);
-    await copyStaticAssets();
-    console.log("Build complete: build/");
+// ─────────────────────────────────────────────────────────────
+// Build Execution
+// ─────────────────────────────────────────────────────────────
+
+const startTime = Date.now();
+
+try {
+    header();
+
+    if (isWatch) {
+        const ctx = await esbuild.context(buildOptions);
+        const result = await ctx.rebuild();
+        const outSize = fs.statSync("build/content.js").size;
+        log("📦", "Bundled", "content.js", formatSize(outSize));
+        await copyStaticAssets();
+        await ctx.watch();
+        watchMode();
+    } else {
+        await esbuild.build(buildOptions);
+        const outSize = fs.statSync("build/content.js").size;
+        log("📦", "Bundled", "content.js", formatSize(outSize));
+        await copyStaticAssets();
+        success(Date.now() - startTime);
+    }
+} catch (err) {
+    error(err);
+    process.exit(1);
 }
