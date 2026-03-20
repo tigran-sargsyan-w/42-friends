@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>42 Friends — Intra-style demo</title>
+  <title>42 Friends — Full Feature Demo</title>
   <style>
     :root {
       --bg: #0a0f18;
@@ -249,6 +249,33 @@
       opacity: .95;
     }
 
+    /* Profile Add Friend Button */
+    .profile-friend-btn {
+      margin-left: 12px;
+      padding: 6px 14px;
+      border-radius: 4px;
+      border: none;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all .15s ease;
+    }
+    .profile-friend-btn[data-mode="add"] {
+      background: linear-gradient(180deg, #24d8e3, #13b9c5);
+      color: #061116;
+    }
+    .profile-friend-btn[data-mode="add"]:hover {
+      background: linear-gradient(180deg, #2eeaf6, #18d0de);
+    }
+    .profile-friend-btn[data-mode="remove"] {
+      background: rgba(234, 116, 128, 0.2);
+      color: var(--red);
+      border: 1px solid var(--red);
+    }
+    .profile-friend-btn[data-mode="remove"]:hover {
+      background: rgba(234, 116, 128, 0.3);
+    }
+
     .hero-grid {
       display: grid;
       grid-template-columns: 360px 1fr 1fr;
@@ -475,20 +502,28 @@
       padding: 18px 20px 95px;
     }
 
-    .overlay {
+    /* ═══════════════════════════════════════════
+       42 Friends Extension Overlay Styles
+       ═══════════════════════════════════════════ */
+
+    .tf-overlay {
       position: fixed;
       right: 24px;
       bottom: 24px;
-      width: 356px;
+      width: 360px;
       border-radius: 18px;
       overflow: hidden;
       border: 1px solid rgba(255,255,255,.08);
       box-shadow: var(--shadow);
-      z-index: 9;
+      z-index: 100;
       backdrop-filter: blur(12px);
+      transition: box-shadow .2s ease;
+    }
+    .tf-overlay.dragging {
+      box-shadow: 0 24px 56px rgba(0,0,0,.5);
     }
 
-    .overlay-head {
+    .tf-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -497,27 +532,72 @@
       color: #082027;
       font-weight: 800;
       font-size: 17px;
-      cursor: pointer;
+      cursor: grab;
       user-select: none;
     }
+    .tf-header:active { cursor: grabbing; }
 
-    .overlay-left,
-    .overlay-right { display: flex; align-items: center; gap: 10px; }
+    .tf-header__title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .tf-header__dot {
+      font-size: 13px;
+      opacity: .75;
+    }
 
-    .overlay-body {
+    .tf-header__actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .tf-header__refresh {
+      background: none;
+      border: none;
+      color: #082027;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+      transition: background .15s;
+    }
+    .tf-header__refresh:hover {
+      background: rgba(0,0,0,.1);
+    }
+
+    .tf-header__collapse {
+      font-size: 16px;
+      transition: transform .2s ease;
+    }
+
+    .tf-body {
       background: linear-gradient(180deg, rgba(27,31,40,.98), rgba(16,18,24,.98));
       padding: 14px;
       color: #f3f6fb;
+      max-height: 520px;
+      overflow-y: auto;
     }
 
-    .toolbar {
+    /* Toolbar */
+    .tf-toolbar {
       display: flex;
       flex-direction: column;
       gap: 12px;
       margin-bottom: 14px;
     }
-    .row { display: flex; gap: 10px; align-items: center; }
-    .input, .select {
+    .tf-toolbar__row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .tf-toolbar__row--sort {
+      font-size: 13px;
+      color: #aab3bf;
+      font-weight: 600;
+    }
+    .tf-toolbar__input {
       flex: 1;
       min-width: 0;
       background: #242a34;
@@ -527,21 +607,68 @@
       padding: 12px 14px;
       font-size: 14px;
       outline: none;
+      transition: border-color .15s;
     }
-    .add-btn {
+    .tf-toolbar__input:focus {
+      border-color: var(--cyan);
+    }
+    .tf-toolbar__input::placeholder {
+      color: #6b7280;
+    }
+    .tf-toolbar__add-btn {
       appearance: none;
       border: none;
       border-radius: 12px;
-      padding: 12px 14px;
+      padding: 12px 18px;
       font-weight: 800;
       color: #061116;
       background: linear-gradient(180deg, #24d8e3, #13b9c5);
       cursor: pointer;
+      transition: transform .1s, background .15s;
+    }
+    .tf-toolbar__add-btn:hover {
+      background: linear-gradient(180deg, #2eeaf6, #18d0de);
+    }
+    .tf-toolbar__add-btn:active {
+      transform: scale(.97);
+    }
+    .tf-toolbar__select {
+      flex: 1;
+      min-width: 0;
+      background: #242a34;
+      color: #f5f7fa;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 14px;
+      outline: none;
+      cursor: pointer;
     }
 
-    .friends { max-height: 420px; overflow: auto; padding-right: 4px; }
+    /* Section titles */
+    .tf-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--cyan);
+      margin: 16px 0 8px 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tf-section-title:first-of-type {
+      margin-top: 0;
+    }
+    .tf-section-title__count {
+      background: rgba(22, 212, 225, 0.2);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+    }
 
-    .friend {
+    /* Friend item */
+    .tf-friend-item {
       display: flex;
       align-items: center;
       gap: 12px;
@@ -549,36 +676,262 @@
       border-radius: 14px;
       background: #222732;
       border: 1px solid rgba(255,255,255,.04);
-      margin-bottom: 10px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: background .15s, border-color .15s, transform .1s;
     }
-    .friend-avatar {
+    .tf-friend-item:hover {
+      background: #2a303d;
+      border-color: rgba(255,255,255,.08);
+    }
+    .tf-friend-item:active {
+      transform: scale(.995);
+    }
+    .tf-friend-item--pinned {
+      background: linear-gradient(135deg, rgba(22, 212, 225, 0.08), rgba(22, 212, 225, 0.02));
+      border-color: rgba(22, 212, 225, 0.2);
+    }
+    .tf-friend-item--pinned:hover {
+      background: linear-gradient(135deg, rgba(22, 212, 225, 0.12), rgba(22, 212, 225, 0.04));
+      border-color: rgba(22, 212, 225, 0.3);
+    }
+
+    .tf-friend-photo {
       width: 42px;
       height: 42px;
       border-radius: 50%;
       background: linear-gradient(135deg, #c6a97c, #f1dcc5);
+      background-size: cover;
+      background-position: center;
       flex: 0 0 auto;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: border-color .15s;
     }
-    .friend-main { min-width: 0; }
-    .friend-login { font-weight: 700; font-size: 15px; }
-    .friend-time { color: #bcc5d4; font-size: 13px; margin-top: 2px; }
-    .friend-right {
-      margin-left: auto;
+    .tf-friend-photo:hover {
+      border-color: var(--cyan);
+    }
+
+    .tf-friend-details {
+      min-width: 0;
+      flex: 1;
+    }
+    .tf-friend-login {
+      font-weight: 700;
+      font-size: 15px;
       display: flex;
       align-items: center;
-      gap: 12px;
-      color: #b8c0d0;
-      font-size: 13px;
+      gap: 6px;
     }
-    .status-dot {
+    .tf-friend-logtime {
+      color: #bcc5d4;
+      font-size: 13px;
+      margin-top: 2px;
+    }
+
+    .tf-pinned-badge {
+      font-size: 12px;
+    }
+
+    .tf-friend-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .tf-friend-cluster {
+      color: #8891a0;
+      font-size: 13px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: rgba(255,255,255,.04);
+    }
+    .tf-friend-cluster--online {
+      color: var(--green);
+      background: rgba(38, 235, 0, 0.1);
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .tf-friend-cluster--online:hover {
+      background: rgba(38, 235, 0, 0.2);
+    }
+
+    .tf-friend-status {
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      background: #33da58;
-      box-shadow: 0 0 0 3px rgba(51,218,88,.08);
+      flex-shrink: 0;
     }
-    .status-dot.offline {
+    .tf-status--online {
+      background: #33da58;
+      box-shadow: 0 0 0 3px rgba(51,218,88,.15);
+    }
+    .tf-status--offline {
       background: #ff5757;
-      box-shadow: 0 0 0 3px rgba(255,87,87,.08);
+      box-shadow: 0 0 0 3px rgba(255,87,87,.15);
+    }
+
+    .tf-btn-pin,
+    .tf-btn-delete {
+      background: none;
+      border: none;
+      padding: 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background .15s, transform .1s;
+      opacity: 0.5;
+    }
+    .tf-friend-item:hover .tf-btn-pin,
+    .tf-friend-item:hover .tf-btn-delete {
+      opacity: 1;
+    }
+    .tf-btn-pin:hover {
+      background: rgba(22, 212, 225, 0.15);
+    }
+    .tf-btn-pin--active {
+      opacity: 1 !important;
+      color: var(--cyan);
+    }
+    .tf-btn-delete:hover {
+      background: rgba(234, 116, 128, 0.15);
+    }
+
+    /* Tooltip */
+    .tf-tooltip {
+      position: fixed;
+      background: #1a1f2a;
+      color: #e8ecf2;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      pointer-events: none;
+      z-index: 200;
+      opacity: 0;
+      transition: opacity .15s;
+      box-shadow: 0 4px 12px rgba(0,0,0,.4);
+      border: 1px solid rgba(255,255,255,.08);
+      white-space: nowrap;
+    }
+    .tf-tooltip.visible {
+      opacity: 1;
+    }
+
+    /* Hover Card */
+    .tf-hover-card {
+      position: fixed;
+      width: 280px;
+      background: linear-gradient(180deg, #1e2430, #151a24);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: 16px;
+      padding: 16px;
+      z-index: 150;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease;
+      box-shadow: 0 12px 36px rgba(0,0,0,.5);
+    }
+    .tf-hover-card.visible {
+      opacity: 1;
+    }
+    .tf-hover-card__header {
+      display: flex;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    .tf-hover-card__avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #c6a97c, #f1dcc5);
+      background-size: cover;
+      background-position: center;
+      flex-shrink: 0;
+      border: 2px solid rgba(255,255,255,.1);
+    }
+    .tf-hover-card__info {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+    .tf-hover-card__name {
+      font-weight: 800;
+      font-size: 16px;
+      color: #f4f7fb;
+    }
+    .tf-hover-card__login {
+      color: var(--cyan);
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .tf-hover-card__stats {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(0,0,0,.2);
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+    .tf-hover-card__label {
+      color: #8891a0;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .tf-hover-card__value {
+      color: var(--green);
+      font-size: 20px;
+      font-weight: 800;
+    }
+
+    /* Empty state */
+    .tf-empty {
+      text-align: center;
+      padding: 32px 16px;
+      color: #6b7585;
+    }
+    .tf-empty__icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+    .tf-empty__text {
+      font-size: 14px;
+    }
+
+    /* Feature badge on demo */
+    .demo-badge {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      background: linear-gradient(135deg, var(--cyan), #0ea5b3);
+      color: #061116;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 12px;
+      z-index: 99;
+      box-shadow: 0 4px 16px rgba(22, 212, 225, 0.3);
+    }
+
+    /* Feature hints */
+    .feature-hint {
+      position: absolute;
+      background: rgba(22, 212, 225, 0.9);
+      color: #061116;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+      animation: pulse 2s ease-in-out infinite;
+      z-index: 50;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.02); }
     }
 
     @media (max-width: 1250px) {
@@ -586,12 +939,14 @@
     }
     @media (max-width: 900px) {
       .hero-grid, .main-grid { grid-template-columns: 1fr; }
-      .overlay { width: calc(100vw - 32px); right: 16px; bottom: 16px; }
+      .tf-overlay { width: calc(100vw - 32px); right: 16px; bottom: 16px; }
       .search-pill { min-width: 140px; }
     }
   </style>
 </head>
 <body>
+  <div class="demo-badge">Interactive Demo</div>
+
   <div class="app">
     <aside class="sidebar">
       <div class="logo42"></div>
@@ -635,7 +990,9 @@
               <div class="name-line">
                 <span class="campus">Earth</span>
                 <span>First Name Last Name</span>
-                <span class="login">login</span>
+                <span class="login">demo_user</span>
+                <!-- Profile Add Friend Button -->
+                <button class="profile-friend-btn" id="profileFriendBtn" data-mode="add">Add Friend</button>
               </div>
 
               <div class="hero-grid">
@@ -800,70 +1157,493 @@
     </main>
   </div>
 
-  <aside class="overlay" id="overlay">
-    <div class="overlay-head" id="overlayHead">
-      <div class="overlay-left"><span style="font-size:13px; opacity:.75;">●</span><span>Friends Tracker</span></div>
-      <div class="overlay-right"><span title="Refresh">↻</span><span id="overlayArrow">▸</span></div>
+  <!-- ═══════════════════════════════════════════
+       42 Friends Extension Overlay
+       ═══════════════════════════════════════════ -->
+
+  <aside class="tf-overlay" id="tfOverlay">
+    <div class="tf-header" id="tfHeader">
+      <div class="tf-header__title">
+        <span class="tf-header__dot">●</span>
+        <span>Friends Tracker</span>
+      </div>
+      <div class="tf-header__actions">
+        <button type="button" class="tf-header__refresh" id="tfRefresh" title="Refresh friends">↻</button>
+        <span class="tf-header__collapse" id="tfCollapseIcon">▾</span>
+      </div>
     </div>
-    <div class="overlay-body" id="overlayBody" style="display:none;">
-      <div class="toolbar">
-        <div class="row">
-          <input class="input" placeholder="Enter login" />
-          <button class="add-btn" type="button">Add</button>
+
+    <div class="tf-body" id="tfBody">
+      <!-- Toolbar -->
+      <div class="tf-toolbar">
+        <div class="tf-toolbar__row">
+          <input type="text" class="tf-toolbar__input" id="tfInput" placeholder="Enter login" />
+          <button type="button" class="tf-toolbar__add-btn" id="tfAddBtn">Add</button>
         </div>
-        <div class="row">
-          <div style="font-size:13px; color:#aab3bf; font-weight:600;">Sort:</div>
-          <select class="select">
-            <option>Alphabetical (A-Z)</option>
-            <option>Alphabetical (Z-A)</option>
-            <option>Online First</option>
-            <option>Offline First</option>
+        <div class="tf-toolbar__row tf-toolbar__row--sort">
+          <span>Sort:</span>
+          <select class="tf-toolbar__select" id="tfSort">
+            <option value="az">Alphabetical (A-Z)</option>
+            <option value="za">Alphabetical (Z-A)</option>
+            <option value="online">Online First</option>
+            <option value="offline">Offline First</option>
           </select>
         </div>
       </div>
 
-      <div class="friends">
-        <div class="friend">
-          <div class="friend-avatar"></div>
-          <div class="friend-main">
-            <div class="friend-login">dsemenov</div>
-            <div class="friend-time">(00h00)</div>
-          </div>
-          <div class="friend-right"><span>Offline</span><span class="status-dot offline"></span></div>
-        </div>
-
-        <div class="friend">
-          <div class="friend-avatar" style="background:linear-gradient(135deg,#8597ba,#eef4ff);"></div>
-          <div class="friend-main">
-            <div class="friend-login">afrancois</div>
-            <div class="friend-time">(04h25)</div>
-          </div>
-          <div class="friend-right"><span>e3r7</span><span class="status-dot"></span></div>
-        </div>
-
-        <div class="friend">
-          <div class="friend-avatar" style="background:linear-gradient(135deg,#6f8a65,#cde3d0);"></div>
-          <div class="friend-main">
-            <div class="friend-login">mlaurent</div>
-            <div class="friend-time">(02h10)</div>
-          </div>
-          <div class="friend-right"><span>Offline</span><span class="status-dot offline"></span></div>
-        </div>
-      </div>
+      <!-- Friends list will be rendered by JS -->
+      <div id="tfFriendsList"></div>
     </div>
   </aside>
 
-  <script>
-    const head = document.getElementById('overlayHead');
-    const body = document.getElementById('overlayBody');
-    const arrow = document.getElementById('overlayArrow');
-    let open = false;
+  <!-- Tooltip element -->
+  <div class="tf-tooltip" id="tfTooltip"></div>
 
-    head.addEventListener('click', () => {
-      open = !open;
-      body.style.display = open ? 'block' : 'none';
-      arrow.textContent = open ? '▾' : '▸';
-    });
+  <!-- Hover Card element -->
+  <div class="tf-hover-card" id="tfHoverCard">
+    <div class="tf-hover-card__header">
+      <div class="tf-hover-card__avatar" id="hcAvatar"></div>
+      <div class="tf-hover-card__info">
+        <div class="tf-hover-card__name" id="hcName">Name</div>
+        <div class="tf-hover-card__login" id="hcLogin">login</div>
+      </div>
+    </div>
+    <div class="tf-hover-card__stats">
+      <span class="tf-hover-card__label">level</span>
+      <span class="tf-hover-card__value" id="hcLevel">0</span>
+    </div>
+  </div>
+
+  <script>
+    // ═══════════════════════════════════════════
+    // Demo Data & State
+    // ═══════════════════════════════════════════
+
+    const friendsData = [
+      {
+        login: "afrancois",
+        name: "Antoine François",
+        level: 8.42,
+        location: "e3r7p12",
+        logtime: "04h25",
+        avatar: "linear-gradient(135deg,#8597ba,#eef4ff)",
+        pinned: true
+      },
+      {
+        login: "jdupont",
+        name: "Jean Dupont",
+        level: 12.15,
+        location: "c1r2p05",
+        logtime: "06h10",
+        avatar: "linear-gradient(135deg,#7a9a6b,#d4ebc8)",
+        pinned: true
+      },
+      {
+        login: "mmartin",
+        name: "Marie Martin",
+        level: 6.78,
+        location: null,
+        logtime: "00h00",
+        avatar: "linear-gradient(135deg,#a87dba,#e8d4f0)",
+        pinned: false
+      },
+      {
+        login: "dsemenov",
+        name: "Dmitry Semenov",
+        level: 4.21,
+        location: null,
+        logtime: "00h00",
+        avatar: "linear-gradient(135deg,#c6a97c,#f1dcc5)",
+        pinned: false
+      },
+      {
+        login: "mlaurent",
+        name: "Marc Laurent",
+        level: 9.55,
+        location: null,
+        logtime: "02h10",
+        avatar: "linear-gradient(135deg,#6f8a65,#cde3d0)",
+        pinned: false
+      },
+      {
+        login: "sbernard",
+        name: "Sophie Bernard",
+        level: 11.32,
+        location: "e2r4p08",
+        logtime: "05h45",
+        avatar: "linear-gradient(135deg,#ba8d7a,#f0dcd4)",
+        pinned: false
+      }
+    ];
+
+    let currentSort = "az";
+
+    // ═══════════════════════════════════════════
+    // DOM Elements
+    // ═══════════════════════════════════════════
+
+    const overlay = document.getElementById("tfOverlay");
+    const header = document.getElementById("tfHeader");
+    const body = document.getElementById("tfBody");
+    const collapseIcon = document.getElementById("tfCollapseIcon");
+    const refreshBtn = document.getElementById("tfRefresh");
+    const input = document.getElementById("tfInput");
+    const addBtn = document.getElementById("tfAddBtn");
+    const sortSelect = document.getElementById("tfSort");
+    const friendsList = document.getElementById("tfFriendsList");
+    const tooltip = document.getElementById("tfTooltip");
+    const hoverCard = document.getElementById("tfHoverCard");
+    const profileFriendBtn = document.getElementById("profileFriendBtn");
+
+    // ═══════════════════════════════════════════
+    // Utility Functions
+    // ═══════════════════════════════════════════
+
+    function showTooltip(element, text) {
+      const rect = element.getBoundingClientRect();
+      tooltip.textContent = text;
+      tooltip.style.left = `${rect.left + rect.width / 2}px`;
+      tooltip.style.top = `${rect.top - 8}px`;
+      tooltip.style.transform = "translate(-50%, -100%)";
+      tooltip.classList.add("visible");
+    }
+
+    function hideTooltip() {
+      tooltip.classList.remove("visible");
+    }
+
+    function showHoverCard(element, friend) {
+      const rect = element.getBoundingClientRect();
+
+      document.getElementById("hcAvatar").style.background = friend.avatar;
+      document.getElementById("hcName").textContent = friend.name;
+      document.getElementById("hcLogin").textContent = friend.login;
+      document.getElementById("hcLevel").textContent = friend.level.toFixed(2);
+
+      let left = rect.right + 16;
+      let top = rect.top - 20;
+
+      // Prevent overflow
+      if (left + 280 > window.innerWidth - 16) {
+        left = rect.left - 280 - 16;
+      }
+      if (top + 140 > window.innerHeight - 16) {
+        top = window.innerHeight - 156;
+      }
+      if (top < 16) top = 16;
+
+      hoverCard.style.left = `${left}px`;
+      hoverCard.style.top = `${top}px`;
+      hoverCard.classList.add("visible");
+    }
+
+    function hideHoverCard() {
+      hoverCard.classList.remove("visible");
+    }
+
+    // ═══════════════════════════════════════════
+    // Sorting
+    // ═══════════════════════════════════════════
+
+    function sortFriends(friends, sortType) {
+      const sorted = [...friends];
+
+      switch (sortType) {
+        case "az":
+          sorted.sort((a, b) => a.login.localeCompare(b.login));
+          break;
+        case "za":
+          sorted.sort((a, b) => b.login.localeCompare(a.login));
+          break;
+        case "online":
+          sorted.sort((a, b) => {
+            const diff = (b.location ? 1 : 0) - (a.location ? 1 : 0);
+            return diff !== 0 ? diff : a.login.localeCompare(b.login);
+          });
+          break;
+        case "offline":
+          sorted.sort((a, b) => {
+            const diff = (a.location ? 1 : 0) - (b.location ? 1 : 0);
+            return diff !== 0 ? diff : a.login.localeCompare(b.login);
+          });
+          break;
+      }
+
+      return sorted;
+    }
+
+    // ═══════════════════════════════════════════
+    // Render Friends List
+    // ═══════════════════════════════════════════
+
+    function renderFriends() {
+      friendsList.innerHTML = "";
+
+      const pinned = friendsData.filter(f => f.pinned);
+      const unpinned = friendsData.filter(f => !f.pinned);
+
+      const sortedPinned = sortFriends(pinned, currentSort);
+      const sortedUnpinned = sortFriends(unpinned, currentSort);
+
+      // Pinned section
+      if (sortedPinned.length > 0) {
+        const pinnedTitle = document.createElement("div");
+        pinnedTitle.className = "tf-section-title";
+        pinnedTitle.innerHTML = `📌 Pinned <span class="tf-section-title__count">${sortedPinned.length}</span>`;
+        friendsList.appendChild(pinnedTitle);
+
+        sortedPinned.forEach(friend => {
+          friendsList.appendChild(createFriendItem(friend));
+        });
+      }
+
+      // Friends section
+      if (sortedUnpinned.length > 0) {
+        const friendsTitle = document.createElement("div");
+        friendsTitle.className = "tf-section-title";
+        friendsTitle.innerHTML = `Friends <span class="tf-section-title__count">${sortedUnpinned.length}</span>`;
+        friendsList.appendChild(friendsTitle);
+
+        sortedUnpinned.forEach(friend => {
+          friendsList.appendChild(createFriendItem(friend));
+        });
+      }
+
+      // Empty state
+      if (friendsData.length === 0) {
+        friendsList.innerHTML = `
+          <div class="tf-empty">
+            <div class="tf-empty__icon">👥</div>
+            <div class="tf-empty__text">No friends added yet.<br>Enter a login above to add someone!</div>
+          </div>
+        `;
+      }
+    }
+
+    function createFriendItem(friend) {
+      const item = document.createElement("div");
+      item.className = friend.pinned
+        ? "tf-friend-item tf-friend-item--pinned"
+        : "tf-friend-item";
+
+      item.onclick = () => {
+        alert(`Opening profile: ${friend.login}`);
+      };
+
+      // Photo
+      const photo = document.createElement("div");
+      photo.className = "tf-friend-photo";
+      photo.style.background = friend.avatar;
+      photo.onclick = (e) => {
+        e.stopPropagation();
+        alert(`Opening profile: ${friend.login}`);
+      };
+      photo.onmouseenter = () => showHoverCard(photo, friend);
+      photo.onmouseleave = hideHoverCard;
+
+      // Details
+      const details = document.createElement("div");
+      details.className = "tf-friend-details";
+      details.innerHTML = `
+        <div class="tf-friend-login">
+          <span>${friend.login}</span>
+          ${friend.pinned ? '<span class="tf-pinned-badge">📌</span>' : ''}
+        </div>
+        <div class="tf-friend-logtime">(${friend.logtime})</div>
+      `;
+
+      // Actions
+      const actions = document.createElement("div");
+      actions.className = "tf-friend-actions";
+
+      // Cluster
+      const cluster = document.createElement("div");
+      cluster.className = friend.location
+        ? "tf-friend-cluster tf-friend-cluster--online"
+        : "tf-friend-cluster";
+      cluster.textContent = friend.location || "Offline";
+
+      if (friend.location) {
+        cluster.onclick = (e) => {
+          e.stopPropagation();
+          alert(`Opening cluster map: ${friend.location}`);
+        };
+        cluster.onmouseenter = () => showTooltip(cluster, "Open cluster map");
+        cluster.onmouseleave = hideTooltip;
+      }
+
+      // Status dot
+      const status = document.createElement("div");
+      status.className = friend.location
+        ? "tf-friend-status tf-status--online"
+        : "tf-friend-status tf-status--offline";
+
+      // Pin button
+      const pinBtn = document.createElement("button");
+      pinBtn.type = "button";
+      pinBtn.className = friend.pinned ? "tf-btn-pin tf-btn-pin--active" : "tf-btn-pin";
+      pinBtn.textContent = "📌";
+      pinBtn.onclick = (e) => {
+        e.stopPropagation();
+        friend.pinned = !friend.pinned;
+        renderFriends();
+      };
+      pinBtn.onmouseenter = () => showTooltip(pinBtn, friend.pinned ? "Unpin friend" : "Pin friend");
+      pinBtn.onmouseleave = hideTooltip;
+
+      // Delete button
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "tf-btn-delete";
+      delBtn.textContent = "✕";
+      delBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (confirm(`Delete ${friend.login} from your friend list?`)) {
+          const index = friendsData.indexOf(friend);
+          if (index > -1) {
+            friendsData.splice(index, 1);
+            renderFriends();
+          }
+        }
+      };
+      delBtn.onmouseenter = () => showTooltip(delBtn, "Delete friend");
+      delBtn.onmouseleave = hideTooltip;
+
+      actions.appendChild(cluster);
+      actions.appendChild(status);
+      actions.appendChild(pinBtn);
+      actions.appendChild(delBtn);
+
+      item.appendChild(photo);
+      item.appendChild(details);
+      item.appendChild(actions);
+
+      return item;
+    }
+
+    // ═══════════════════════════════════════════
+    // Event Handlers
+    // ═══════════════════════════════════════════
+
+    // Collapse/Expand
+    let isCollapsed = false;
+    header.onclick = (e) => {
+      if (e.target.tagName === "BUTTON") return;
+      isCollapsed = !isCollapsed;
+      body.style.display = isCollapsed ? "none" : "block";
+      collapseIcon.textContent = isCollapsed ? "▸" : "▾";
+    };
+
+    // Refresh
+    refreshBtn.onclick = (e) => {
+      e.stopPropagation();
+      refreshBtn.style.transform = "rotate(360deg)";
+      refreshBtn.style.transition = "transform 0.5s ease";
+      setTimeout(() => {
+        refreshBtn.style.transform = "";
+        refreshBtn.style.transition = "";
+      }, 500);
+      renderFriends();
+    };
+    refreshBtn.onmouseenter = () => showTooltip(refreshBtn, "Refresh friends");
+    refreshBtn.onmouseleave = hideTooltip;
+
+    // Add friend
+    function addFriend() {
+      const login = input.value.trim().toLowerCase();
+      if (!login) return;
+
+      if (friendsData.some(f => f.login === login)) {
+        alert("Friend already in list!");
+        return;
+      }
+
+      friendsData.push({
+        login,
+        name: login.charAt(0).toUpperCase() + login.slice(1) + " User",
+        level: Math.floor(Math.random() * 15) + Math.random(),
+        location: Math.random() > 0.5 ? `e${Math.floor(Math.random()*5)+1}r${Math.floor(Math.random()*10)+1}p${Math.floor(Math.random()*20)+1}` : null,
+        logtime: `0${Math.floor(Math.random()*8)}h${Math.floor(Math.random()*60).toString().padStart(2,'0')}`,
+        avatar: `linear-gradient(135deg, hsl(${Math.random()*360}, 40%, 50%), hsl(${Math.random()*360}, 40%, 80%))`,
+        pinned: false
+      });
+
+      input.value = "";
+      renderFriends();
+    }
+
+    addBtn.onclick = addFriend;
+    input.onkeydown = (e) => {
+      if (e.key === "Enter") addFriend();
+    };
+
+    // Sort change
+    sortSelect.onchange = () => {
+      currentSort = sortSelect.value;
+      renderFriends();
+    };
+
+    // Drag overlay
+    let isDragging = false;
+    let startX, startY, startRight, startBottom;
+
+    header.onmousedown = (e) => {
+      if (e.target.tagName === "BUTTON") return;
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startRight = parseInt(getComputedStyle(overlay).right) || 24;
+      startBottom = parseInt(getComputedStyle(overlay).bottom) || 24;
+      overlay.classList.add("dragging");
+      document.body.style.userSelect = "none";
+    };
+
+    document.onmousemove = (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      overlay.style.right = `${Math.max(8, startRight - dx)}px`;
+      overlay.style.bottom = `${Math.max(8, startBottom - dy)}px`;
+    };
+
+    document.onmouseup = () => {
+      isDragging = false;
+      overlay.classList.remove("dragging");
+      document.body.style.userSelect = "";
+    };
+
+    // Profile friend button
+    profileFriendBtn.onclick = () => {
+      const mode = profileFriendBtn.dataset.mode;
+      if (mode === "add") {
+        friendsData.push({
+          login: "demo_user",
+          name: "First Name Last Name",
+          level: 5.26,
+          location: Math.random() > 0.5 ? "e1r5p08" : null,
+          logtime: "03h15",
+          avatar: "linear-gradient(135deg, #86724f, #e8cfb3)",
+          pinned: false
+        });
+        profileFriendBtn.dataset.mode = "remove";
+        profileFriendBtn.textContent = "Remove Friend";
+        renderFriends();
+      } else {
+        const index = friendsData.findIndex(f => f.login === "demo_user");
+        if (index > -1) {
+          friendsData.splice(index, 1);
+        }
+        profileFriendBtn.dataset.mode = "add";
+        profileFriendBtn.textContent = "Add Friend";
+        renderFriends();
+      }
+    };
+
+    // ═══════════════════════════════════════════
+    // Initialize
+    // ═══════════════════════════════════════════
+
+    renderFriends();
   </script>
 </body>
 </html>
