@@ -71,16 +71,6 @@ The extension is designed to make it easier to:
 
 8. Open the 42 intra and use the extension
 
----
-
-### Firefox
-
-The Firefox version is available here:
-
-**42 Friends on Firefox Add-ons**
-[https://addons.mozilla.org/en-US/firefox/addon/42-friends/](https://addons.mozilla.org/en-US/firefox/addon/42-friends/)
-
-After installation, open the 42 intra and use the extension normally.
 
 ---
 
