@@ -1,7 +1,7 @@
 # 42 Friends 👥
 [🌐 Chrome Web Store](https://chromewebstore.google.com/detail/phlpfkagodnnigalpgcohfdaiobpnnac?utm_source=item-share-cb)
 
-![42 Friends Demo](demo.png)
+![42 Friends Demo](demo-2560x1600.png)
 
 A browser extension for the **42 intra** that adds a floating friends tracker overlay, making it easier to follow your friends directly from the intra interface.
 
