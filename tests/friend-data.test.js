@@ -95,3 +95,11 @@ test("clearing one removed friend's cache leaves others intact", async () => {
     assert.equal((await readFriendCache("alice")).profile, null);
     assert.equal((await readFriendCache("bob")).profile.data.login, "bob");
 });
+
+test("missing logtime does not invalidate a fresh online status", async () => {
+    db.clear();
+    await saveFriendResource("diana", "profile", { login: "diana", location: "z3r1p1" });
+    const snapshot = await getFriendSnapshot("diana");
+    assert.equal(snapshot.stale, false);
+    assert.equal(snapshot.logtimeStale, true);
+});

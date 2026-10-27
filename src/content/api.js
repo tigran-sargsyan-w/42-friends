@@ -11,6 +11,7 @@ function toResult(friend, profile, logtime, error = null, stale = false, logtime
         log_time_object: logtime || {},
         unavailable: !profile,
         stale,
+        logtimeStale,
         error
     };
 }

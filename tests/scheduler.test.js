@@ -88,3 +88,26 @@ test("server errors, authorization errors and non-JSON responses are distinguish
     await assert.rejects(scheduler.request("b"), { code: "http_error", status: 503 });
     await assert.rejects(scheduler.request("c"), { code: "invalid_response" });
 });
+
+test("bounded queue declines excess requests without sending them", async () => {
+    let finish;
+    let calls = 0;
+    const scheduler = new RequestScheduler({
+        minIntervalMs: 0,
+        maxQueueSize: 1,
+        fetchImpl: () => {
+            calls++;
+            return new Promise(resolve => { finish = () => resolve(jsonResponse({ ok: true })); });
+        }
+    });
+    const a = scheduler.request("a");
+    const b = scheduler.request("b");
+    await assert.rejects(scheduler.request("c"), { code: "queue_busy" });
+    assert.equal(calls, 1);
+    finish();
+    await a;
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls, 2);
+    finish();
+    await b;
+});
