@@ -126,3 +126,15 @@ test("authorization failure cancels pending requests instead of querying all fri
     assert.equal(results.length, 3);
     assert.ok(results.every(result => result.status === "rejected" && result.reason.code === "unauthorized"));
 });
+
+test("accepts valid JSON from a 42 endpoint with a text/plain content type", async () => {
+    const scheduler = new RequestScheduler({
+        minIntervalMs: 0,
+        fetchImpl: async () => new Response('{"login":"alice","location":null}', {
+            status: 200,
+            headers: { "Content-Type": "text/plain" }
+        })
+    });
+    const data = await scheduler.request("profile:alice");
+    assert.equal(data.login, "alice");
+});

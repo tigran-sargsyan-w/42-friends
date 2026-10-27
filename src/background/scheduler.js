@@ -128,10 +128,8 @@ export class RequestScheduler {
                         });
                     }
 
-                    const contentType = response.headers.get("Content-Type") || "";
-                    if (!/json/i.test(contentType)) {
-                        throw new RequestError("invalid_response", "42 Intra did not return JSON");
-                    }
+                    // Like the original extension, parse successful JSON responses
+                    // regardless of Content-Type (internal 42 endpoints may mislabel it).
                     let data;
                     try {
                         data = await response.json();
