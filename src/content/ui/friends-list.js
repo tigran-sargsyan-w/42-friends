@@ -125,7 +125,11 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
         ...friendList.filter(friend => !pinned.includes(friend))];
     await Promise.all(ordered.map(async friend => {
         try {
-            const result = await fetchFriendData(friend);
+            const result = await fetchFriendData(friend, partial => {
+                if (!controller.active || !container.isConnected) return;
+                byFriend.set(friend, partial);
+                schedulePaint();
+            });
             if (!controller.active || !container.isConnected) return;
             if (result.error) {
                 failed++;

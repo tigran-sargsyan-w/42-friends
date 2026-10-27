@@ -58,7 +58,7 @@ export async function getFriendSnapshot(friend) {
  * Refreshes only missing/expired resources. Successful profile responses
  * survive a subsequent logtime failure.
  */
-export async function fetchFriendData(friend) {
+export async function fetchFriendData(friend, onProgress = null) {
     const cached = await readFriendCache(friend);
     let profile = cached.profile?.data;
     let logtime = cached.logtime?.data;
@@ -71,6 +71,14 @@ export async function fetchFriendData(friend) {
             profile = await fetchRemote(friend, "profile");
             await saveFriendResource(friend, "profile", profile);
             profileFresh = true;
+            // Render the profile immediately; logtime may still be queued.
+            if (typeof onProgress === "function") {
+                try {
+                    onProgress(toResult(friend, profile, logtime, null, false, !logtimeFresh));
+                } catch (error) {
+                    console.warn("42 Friends: progress listener failed", error);
+                }
+            }
         }
         if (!cached.logtime?.fresh) {
             logtime = await fetchRemote(friend, "logtime");

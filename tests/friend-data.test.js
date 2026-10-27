@@ -103,3 +103,24 @@ test("missing logtime does not invalidate a fresh online status", async () => {
     assert.equal(snapshot.stale, false);
     assert.equal(snapshot.logtimeStale, true);
 });
+
+test("profile is available to the UI before a slow logtime response", async () => {
+    db.clear();
+    let releaseLogtime;
+    const logtimeReady = new Promise(resolve => { releaseLogtime = resolve; });
+    handler = async ({ kind }) => kind === "profile"
+        ? { ok: true, data: { login: "erin", location: "z1" } }
+        : logtimeReady;
+    const updates = [];
+    const pending = fetchFriendData("erin", snapshot => updates.push(snapshot));
+    for (let tries = 0; tries < 10 && !updates.length; tries++) {
+        await new Promise(resolve => setImmediate(resolve));
+    }
+    assert.equal(updates.length, 1);
+    assert.equal(updates[0].friend_object.login, "erin");
+    assert.equal(updates[0].logtimeStale, true);
+    releaseLogtime({ ok: true, data: { today: "03:00" } });
+    const result = await pending;
+    assert.equal(result.logtime_object.today, "03:00");
+    assert.equal(result.logtimeStale, false);
+});
