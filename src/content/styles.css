@@ -526,18 +526,23 @@
     border-color: #f27777;
 }
 
-/* Rate-limit feedback and unknown statuses. */
+/* Only small additions to the original v0.1.5 appearance. */
 .tf-network-notice {
-    background: rgba(228, 171, 52, 0.11);
-    border: 1px solid rgba(228, 171, 52, 0.42);
+    margin: 0 0 10px;
+    padding: 9px 12px;
     border-radius: 8px;
-    color: #e7c782;
+    border: 1px solid rgba(228,171,52,.4);
+    color: #e9c988;
+    background: rgba(228,171,52,.09);
     font-size: 12px;
-    line-height: 1.5;
-    padding: 10px 12px;
-    margin: 8px 10px 10px;
+    line-height: 1.4;
 }
-.tf-friend-status.tf-status--unknown {
-    background: #8793a3;
+.tf-load-progress {
+    font-size: 12px;
+    color: #aab3bf;
+    padding: 0 3px 8px;
+}
+.tf-status--stale {
+    background: #8b96a6;
     box-shadow: none;
 }

@@ -27,7 +27,7 @@ export function sortFriendDataList(friendDataList, sortPreference) {
 
         case "Online First":
             friendDataList.sort((a, b) => {
-                const onlineDelta = (!b.stale && !b.unavailable && b.friend_object.location ? 1 : 0) - (!a.stale && !a.unavailable && a.friend_object.location ? 1 : 0);
+                const onlineDelta = (b.friend_object.location ? 1 : 0) - (a.friend_object.location ? 1 : 0);
                 if (onlineDelta !== 0) {
                     return onlineDelta;
                 }
@@ -37,7 +37,7 @@ export function sortFriendDataList(friendDataList, sortPreference) {
 
         case "Offline First":
             friendDataList.sort((a, b) => {
-                const offlineDelta = (!a.stale && !a.unavailable && a.friend_object.location ? 1 : 0) - (!b.stale && !b.unavailable && b.friend_object.location ? 1 : 0);
+                const offlineDelta = (a.friend_object.location ? 1 : 0) - (b.friend_object.location ? 1 : 0);
                 if (offlineDelta !== 0) {
                     return offlineDelta;
                 }

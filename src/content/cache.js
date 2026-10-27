@@ -1,83 +1,56 @@
 /**
- * Per-resource cache. Old friend_cache_* entries are read for backward
- * compatibility with 0.1.5; users' saved friend lists are never migrated away.
+ * Cache format and storage keys remain compatible with v0.1.5.
+ * Expired records are retained for immediate, visibly stale display.
  */
-const store = chrome.storage.local;
-const PREFIX = "tf_resource_v2_";
-const LEGACY_PREFIX = "friend_cache_";
-const TTL = {
-    profile: 3 * 60 * 1000, // location is part of the profile response
-    logtime: 10 * 60 * 1000
-};
+import { CACHE_EXPIRY_MS, CACHE_KEY_PREFIX } from "./constants.js";
 
-function resourceKey(friend, kind) {
-    return `${PREFIX}${kind}_${friend}`;
+const storage = chrome.storage.local;
+
+function key(friend) {
+    return `${CACHE_KEY_PREFIX}${friend}`;
 }
 
-export async function readFriendCache(friend) {
-    const profileKey = resourceKey(friend, "profile");
-    const logtimeKey = resourceKey(friend, "logtime");
-    const legacyKey = LEGACY_PREFIX + friend;
-    const result = await store.get([profileKey, logtimeKey, legacyKey]);
-    const legacy = result[legacyKey];
-
-    function fromCache(kind, legacyField) {
-        const entry = result[resourceKey(friend, kind)] ||
-            (legacy?.data?.[legacyField] && {
-                data: legacy.data[legacyField],
-                timestamp: legacy.timestamp
-            });
-        if (!entry || typeof entry.timestamp !== "number" || !entry.data ||
-            typeof entry.data !== "object") return null;
-        return {
-            data: entry.data,
-            timestamp: entry.timestamp,
-            fresh: Date.now() - entry.timestamp < TTL[kind]
-        };
+export async function getCachedFriendData(friend, { allowStale = false } = {}) {
+    const result = await storage.get(key(friend));
+    const record = result[key(friend)];
+    if (!record || !record.data) return null;
+    if (allowStale || Date.now() - record.timestamp < CACHE_EXPIRY_MS) {
+        return record.data;
     }
-
-    return {
-        profile: fromCache("profile", "friend_object"),
-        logtime: fromCache("logtime", "log_time_object")
-    };
+    return null;
 }
 
-export async function saveFriendResource(friend, kind, data) {
-    if (!Object.hasOwn(TTL, kind)) throw new Error("Unsupported cache resource");
-    await store.set({
-        [resourceKey(friend, kind)]: { data, timestamp: Date.now() }
-    });
+export async function isFriendCacheFresh(friend) {
+    const result = await storage.get(key(friend));
+    const record = result[key(friend)];
+    return Boolean(record && record.data &&
+        Date.now() - record.timestamp < CACHE_EXPIRY_MS);
+}
+
+export async function setCachedFriendData(friend, data) {
+    await storage.set({ [key(friend)]: { data, timestamp: Date.now() } });
+}
+
+/** Refresh without deleting known photos, locations, or logtimes. */
+export async function markFriendCacheForRefresh(minAgeMs = 60000) {
+    const data = await storage.get(null);
+    const now = Date.now();
+    const modified = {};
+    for (const [entryKey, record] of Object.entries(data)) {
+        if (!entryKey.startsWith(CACHE_KEY_PREFIX) || !record?.data ||
+            !Number.isFinite(record.timestamp)) continue;
+        if (now - record.timestamp < minAgeMs) continue;
+        modified[entryKey] = { ...record, timestamp: 0 };
+    }
+    if (Object.keys(modified).length) await storage.set(modified);
 }
 
 export async function clearFriendCache(friend) {
     if (friend) {
-        await store.remove([
-            resourceKey(friend, "profile"),
-            resourceKey(friend, "logtime"),
-            LEGACY_PREFIX + friend
-        ]);
+        await storage.remove(key(friend));
         return;
     }
-    const values = await store.get(null);
-    const keys = Object.keys(values).filter(
-        key => key.startsWith(PREFIX) || key.startsWith(LEGACY_PREFIX)
-    );
-    if (keys.length) await store.remove(keys);
-}
-
-/**
- * Manual refresh: retain the data, but expire entries older than a minimum age.
- * This prevents the refresh button from erasing the list or bypassing cooldowns.
- */
-export async function requestFriendRefresh() {
-    const values = await store.get(null);
-    const updates = {};
-    for (const [key, entry] of Object.entries(values)) {
-        if (!key.startsWith(PREFIX) || !entry || typeof entry.timestamp !== "number") continue;
-        const minAge = key.startsWith(PREFIX + "profile_") ? 30000 : 180000;
-        if (Date.now() - entry.timestamp >= minAge && entry.timestamp !== 0) {
-            updates[key] = { ...entry, timestamp: 0 };
-        }
-    }
-    if (Object.keys(updates).length) await store.set(updates);
+    const all = await storage.get(null);
+    const keys = Object.keys(all).filter(k => k.startsWith(CACHE_KEY_PREFIX));
+    if (keys.length) await storage.remove(keys);
 }

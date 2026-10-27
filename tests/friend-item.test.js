@@ -1,66 +1,51 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-// Only DOM methods used by the card renderer are needed for this smoke test.
-class Element {
-    constructor(tagName) {
-        this.tagName = tagName.toUpperCase();
+class MockElement {
+    constructor(tag) {
+        this.tagName = tag.toUpperCase();
         this.children = [];
-        this.style = {};
         this.className = "";
+        this.style = {};
         this.textContent = "";
-        this.classList = {
-            add: name => { this.className += " " + name; }
-        };
+        this.classList = { add: name => { this.className += " " + name; } };
     }
-    appendChild(child) { this.children.push(child); return child; }
+    appendChild(element) { this.children.push(element); return element; }
     addEventListener() {}
     remove() {}
 }
-
 globalThis.chrome = { storage: { sync: {} } };
 globalThis.document = {
-    createElement: name => new Element(name),
-    body: new Element("body")
+    createElement: name => new MockElement(name),
+    body: new MockElement("body")
 };
-globalThis.window = { open() {}, innerWidth: 1200, innerHeight: 800 };
+globalThis.window = { open() {}, innerWidth: 1500, innerHeight: 800 };
 const { createFriendItem } = await import("../src/content/ui/friend-item.js");
 
-function render({ profile = {}, logtime = {}, stale = true, logtimeStale = true } = {}) {
-    const container = new Element("div");
+test("renders a saved login immediately, before profile is loaded", () => {
+    const container = new MockElement("section");
     createFriendItem({
-        container,
-        friend: "alice",
-        today: "2026-10-27",
-        friendObject: profile,
-        logTimeObject: logtime,
-        isPinned: true,
-        isStale: stale,
-        isLogtimeStale: logtimeStale,
+        container, friend: "alice", today: "2026-10-27",
+        friendObject: {}, logTimeObject: {}, isPinned: true, isPending: true,
         onRefresh: async () => {}
     });
-    return container;
-}
-
-test("renders saved friend even if no network response or cache exists", () => {
-    const root = render();
-    assert.equal(root.children.length, 1);
-    assert.match(root.children[0].className, /tf-friend-item--pinned/);
-    const details = root.children[0].children[1];
-    assert.equal(details.children[0].children[0].textContent, "alice");
-    assert.equal(details.children[1].textContent, "Logtime unknown");
-    const actions = root.children[0].children[2];
-    assert.equal(actions.children[0].textContent, "Status unknown");
+    assert.equal(container.children.length, 1);
+    const card = container.children[0];
+    assert.match(card.className, /pinned/);
+    assert.equal(card.children[1].children[1].textContent, "Loading...");
+    assert.equal(card.children[2].children[0].textContent, "Loading...");
 });
 
-test("renders fresh online friend and fresh logtime without fallback", () => {
-    const root = render({
-        profile: { location: "z1r2p3", displayname: "Alice" },
-        logtime: { "2026-10-27": "04:30" },
-        stale: false,
-        logtimeStale: false
+test("real fresh data preserves the original online and logtime display", () => {
+    const container = new MockElement("section");
+    createFriendItem({
+        container, friend: "bob", today: "2026-10-27",
+        friendObject: { location: "z1r2p3" },
+        logTimeObject: { "2026-10-27": "04:30" },
+        isPinned: false,
+        onRefresh: async () => {}
     });
-    assert.equal(root.children.length, 1);
-    assert.equal(root.children[0].children[1].children[1].textContent, "04h30 today");
-    assert.equal(root.children[0].children[2].children[0].textContent, "z1r2p3");
+    assert.equal(container.children.length, 1);
+    assert.equal(container.children[0].children[1].children[1].textContent, "04h30 today");
+    assert.equal(container.children[0].children[2].children[0].textContent, "z1r2p3");
 });
