@@ -121,6 +121,6 @@ test("profile is available to the UI before a slow logtime response", async () =
     assert.equal(updates[0].logtimeStale, true);
     releaseLogtime({ ok: true, data: { today: "03:00" } });
     const result = await pending;
-    assert.equal(result.logtime_object.today, "03:00");
+    assert.equal(result.log_time_object.today, "03:00");
     assert.equal(result.logtimeStale, false);
 });
