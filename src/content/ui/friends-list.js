@@ -45,7 +45,7 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
         if (cooldownUntil > Date.now()) {
             const notice = document.createElement("div");
             notice.className = "tf-network-notice";
-            notice.textContent = "42 Intra is limiting requests. Showing saved data where available; updates will resume after the cooldown.";
+            notice.textContent = "Friend updates are paused to reduce 42 Intra traffic. Saved information stays visible; updates will resume automatically.";
             container.appendChild(notice);
         } else if (failed) {
             const notice = document.createElement("div");
@@ -80,7 +80,7 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
                     friendObject: item.friend_object,
                     logTimeObject: item.log_time_object,
                     isPinned,
-                    isStale: item.stale || item.unavailable,
+                    isStale: item.stale || item.unavailable,\n                    isLogtimeStale: item.logtimeStale,
                     onRefresh
                 });
             }
@@ -128,7 +128,7 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
             if (!controller.active) return;
             if (result.error) {
                 failed++;
-                if (result.error.code === "rate_limited") {
+                if (result.error.code === "rate_limited" || result.error.code === "queue_busy") {
                     cooldownUntil = Math.max(cooldownUntil, Number(result.error.cooldownUntil) || 0);
                 }
             }

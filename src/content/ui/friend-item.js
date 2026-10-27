@@ -55,7 +55,7 @@ export function createFriendItem({
         item.appendChild(photo);
 
         // Details (login + log time)
-        const details = createDetailsSection(friend, today, logTimeObject, isPinned);
+        const details = createDetailsSection(friend, today, logTimeObject, isPinned, isLogtimeStale);
         item.appendChild(details);
 
         // Action area (cluster, status, buttons)
@@ -94,7 +94,7 @@ function createProfilePhoto(friend, friendObject) {
 /**
  * Creates the details section with login and log time.
  */
-function createDetailsSection(friend, today, logTimeObject, isPinned) {
+function createDetailsSection(friend, today, logTimeObject, isPinned, isLogtimeStale) {
     const details = document.createElement("div");
     details.className = "tf-friend-details";
 
@@ -114,7 +114,7 @@ function createDetailsSection(friend, today, logTimeObject, isPinned) {
 
     const logTime = document.createElement("div");
     logTime.className = "tf-friend-logtime";
-    logTime.textContent = formatLogTime(logTimeObject[today]);
+    const timeToday = logTimeObject[today];\n    logTime.textContent = isLogtimeStale\n        ? (timeToday ? formatLogTime(timeToday).replace(" today", " (cached)") : "Logtime unknown")\n        : formatLogTime(timeToday);
 
     details.appendChild(login);
     details.appendChild(logTime);

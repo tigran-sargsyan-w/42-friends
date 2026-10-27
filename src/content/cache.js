@@ -64,3 +64,20 @@ export async function clearFriendCache(friend) {
     );
     if (keys.length) await store.remove(keys);
 }
+
+/**
+ * Manual refresh: retain the data, but expire entries older than a minimum age.
+ * This prevents the refresh button from erasing the list or bypassing cooldowns.
+ */
+export async function requestFriendRefresh() {
+    const values = await store.get(null);
+    const updates = {};
+    for (const [key, entry] of Object.entries(values)) {
+        if (!key.startsWith(PREFIX) || !entry || typeof entry.timestamp !== "number") continue;
+        const minAge = key.startsWith(PREFIX + "profile_") ? 30000 : 180000;
+        if (Date.now() - entry.timestamp >= minAge && entry.timestamp !== 0) {
+            updates[key] = { ...entry, timestamp: 0 };
+        }
+    }
+    if (Object.keys(updates).length) await store.set(updates);
+}

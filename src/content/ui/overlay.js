@@ -8,7 +8,7 @@
 
 import { DOM_IDS, SYNC_KEYS, CSS_CLASSES, OVERLAY_DEFAULTS } from "../constants.js";
 import { getOverlayState, setOverlayState, getFriendSortPreference } from "../storage.js";
-import { createFriendsToolbar } from "./toolbar.js";
+import { requestFriendRefresh } from "../cache.js";\nimport { createFriendsToolbar } from "./toolbar.js";
 import { renderFriendsList } from "./friends-list.js";
 
 /**

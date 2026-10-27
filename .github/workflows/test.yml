@@ -19,3 +19,10 @@ jobs:
       - name: Verify build manifest
         run: |
           node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync("build/manifest.json"));if(m.manifest_version!==3||m.background.service_worker!=="background.js")process.exit(1);for(const path of ["build/content.js","build/background.js","build/manifest.json"])if(!fs.existsSync(path))process.exit(1);'
+      - name: Package Chrome extension for manual testing
+        run: cd build && zip -qr ../42-friends-v0.1.6.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 42-friends-v0.1.6-chrome
+          path: 42-friends-v0.1.6.zip
+          if-no-files-found: error

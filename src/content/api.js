@@ -4,7 +4,7 @@
  */
 import { readFriendCache, saveFriendResource } from "./cache.js";
 
-function toResult(friend, profile, logtime, error = null, stale = false) {
+function toResult(friend, profile, logtime, error = null, stale = false, logtimeStale = false) {
     return {
         friend,
         friend_object: profile || {},
@@ -48,7 +48,7 @@ export async function getFriendSnapshot(friend) {
         cached.profile?.data,
         cached.logtime?.data,
         null,
-        !cached.profile?.fresh || !cached.logtime?.fresh
+        !cached.profile?.fresh,\n        !cached.logtime?.fresh
     );
 }
 
@@ -60,16 +60,16 @@ export async function fetchFriendData(friend) {
     const cached = await readFriendCache(friend);
     let profile = cached.profile?.data;
     let logtime = cached.logtime?.data;
-    let failure = null;
+    let failure = null;\n    let profileFresh = Boolean(cached.profile?.fresh);\n    let logtimeFresh = Boolean(cached.logtime?.fresh);
 
     try {
         if (!cached.profile?.fresh) {
             profile = await fetchRemote(friend, "profile");
-            await saveFriendResource(friend, "profile", profile);
+            await saveFriendResource(friend, "profile", profile);\n            profileFresh = true;
         }
         if (!cached.logtime?.fresh) {
             logtime = await fetchRemote(friend, "logtime");
-            await saveFriendResource(friend, "logtime", logtime);
+            await saveFriendResource(friend, "logtime", logtime);\n            logtimeFresh = true;
         }
     } catch (error) {
         failure = {
@@ -80,5 +80,5 @@ export async function fetchFriendData(friend) {
         };
     }
 
-    return toResult(friend, profile, logtime, failure, Boolean(failure));
+    return toResult(friend, profile, logtime, failure, !profileFresh, !logtimeFresh);
 }

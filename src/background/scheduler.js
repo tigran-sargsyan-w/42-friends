@@ -24,14 +24,14 @@ export class RequestScheduler {
         fetchImpl = fetch,
         now = Date.now,
         wait = ms => new Promise(resolve => setTimeout(resolve, ms)),
-        minIntervalMs = 1800,
+        minIntervalMs = 1800,\n        maxQueueSize = 60,
         initialCooldownUntil = 0,
         persistCooldown = async () => {}
     } = {}) {
         this.fetchImpl = fetchImpl;
         this.now = now;
         this.wait = wait;
-        this.minIntervalMs = minIntervalMs;
+        this.minIntervalMs = minIntervalMs;\n        this.maxQueueSize = maxQueueSize;
         this.persistCooldown = persistCooldown;
         this.cooldownUntil = initialCooldownUntil;
         this.nextAllowedAt = 0;
@@ -51,7 +51,7 @@ export class RequestScheduler {
     request(url) {
         // Deduplicate overlapping requests, including those from separate tabs.
         if (this.pending.has(url)) return this.pending.get(url);
-        if (this.now() < this.cooldownUntil) return Promise.reject(this.rateLimitError());
+        if (this.now() < this.cooldownUntil) return Promise.reject(this.rateLimitError());\n        // Avoid responses waiting beyond the service worker event lifetime.\n        if (this.queue.length >= this.maxQueueSize) {\n            return Promise.reject(new RequestError("queue_busy", "Friend updates are queued", {\n                cooldownUntil: this.now() + 120000, retryAfterMs: 120000\n            }));\n        }
 
         const promise = new Promise((resolve, reject) => {
             this.queue.push({ url, resolve, reject });
