@@ -21,7 +21,7 @@ const ready = chrome.storage.local.get([STATE_KEY, LEGACY_COOLDOWN_KEY]).then(it
 let operations = Promise.resolve();
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (!message || message.type !== "42-friends:budget") return false;
-    if (!sender.tab || !sender.url?.startsWith("https://")) return false;
+    if (!sender.tab) return false;
     const allowed = ["reserve", "check", "limited", "success"];
     if (!allowed.includes(message.operation)) return false;
 
