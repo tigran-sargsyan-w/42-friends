@@ -124,6 +124,12 @@ async function copyStaticAssets() {
         }
     }
 
+    // The source manifest points into build/ but the distributed manifest
+    // lives inside build/, so service_worker must be relative to its root.
+    if (manifest.background?.service_worker) {
+        manifest.background.service_worker = manifest.background.service_worker.replace(/^build\//, "");
+    }
+
     // Write transformed manifest to build/
     await fs.promises.writeFile(
         "build/manifest.json",
@@ -149,9 +155,9 @@ async function copyStaticAssets() {
 }
 
 const buildOptions = {
-    entryPoints: ["src/content/index.js"],
+    entryPoints: { content: "src/content/index.js", background: "src/background/index.js" },
     bundle: true,
-    outfile: "build/content.js",
+    outdir: "build",
     format: "iife",
     target: ["chrome126", "firefox128"],
     minify: false,

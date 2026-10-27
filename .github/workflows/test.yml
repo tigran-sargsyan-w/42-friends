@@ -1,0 +1,27 @@
+name: Verify extension
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Verify content-script fetch and budget-only service worker
+        run: |
+          node -e 'const fs=require("fs");const m=JSON.parse(fs.readFileSync("build/manifest.json"));if(m.manifest_version!==3||m.background?.service_worker!=="background.js"||m.content_scripts[0].js[0]!=="content.js")process.exit(1);if(!fs.existsSync("build/content.js")||!fs.existsSync("build/background.js"))process.exit(1)'
+      - name: Package for manual Chrome testing
+        run: cd build && zip -qr ../42-friends-v0.1.6.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 42-friends-v0.1.6-rate-budget
+          path: 42-friends-v0.1.6.zip
+          if-no-files-found: error

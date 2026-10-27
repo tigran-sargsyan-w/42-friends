@@ -36,6 +36,9 @@ export function createFriendItem({
     friendObject,
     logTimeObject,
     isPinned,
+    isPending = false,
+    isStale = false,
+    isLogtimeStale = false,
     onRefresh
 }) {
     try {
@@ -54,11 +57,11 @@ export function createFriendItem({
         item.appendChild(photo);
 
         // Details (login + log time)
-        const details = createDetailsSection(friend, today, logTimeObject, isPinned);
+        const details = createDetailsSection(friend, today, logTimeObject, isPinned, isPending, isStale, isLogtimeStale);
         item.appendChild(details);
 
         // Action area (cluster, status, buttons)
-        const actions = createActionsSection(friend, friendObject, isPinned, item, onRefresh);
+        const actions = createActionsSection(friend, friendObject, isPinned, item, onRefresh, isPending, isStale);
         item.appendChild(actions);
 
         container.appendChild(item);
@@ -93,7 +96,7 @@ function createProfilePhoto(friend, friendObject) {
 /**
  * Creates the details section with login and log time.
  */
-function createDetailsSection(friend, today, logTimeObject, isPinned) {
+function createDetailsSection(friend, today, logTimeObject, isPinned, isPending, isStale, isLogtimeStale) {
     const details = document.createElement("div");
     details.className = "tf-friend-details";
 
@@ -113,7 +116,9 @@ function createDetailsSection(friend, today, logTimeObject, isPinned) {
 
     const logTime = document.createElement("div");
     logTime.className = "tf-friend-logtime";
-    logTime.textContent = formatLogTime(logTimeObject[today]);
+    logTime.textContent = isPending ? "Loading..." : ((isStale || isLogtimeStale)
+        ? formatLogTime(logTimeObject[today]).replace(" today", " (cached)")
+        : formatLogTime(logTimeObject[today]));
 
     details.appendChild(login);
     details.appendChild(logTime);
@@ -124,7 +129,7 @@ function createDetailsSection(friend, today, logTimeObject, isPinned) {
 /**
  * Creates the actions section with cluster location, status indicator, and buttons.
  */
-function createActionsSection(friend, friendObject, isPinned, itemElement, onRefresh) {
+function createActionsSection(friend, friendObject, isPinned, itemElement, onRefresh, isPending, isStale) {
     const actions = document.createElement("div");
     actions.className = "tf-friend-actions";
 
@@ -132,7 +137,13 @@ function createActionsSection(friend, friendObject, isPinned, itemElement, onRef
     const clusterPosition = document.createElement("div");
     clusterPosition.className = "tf-friend-cluster";
 
-    if (friendObject.location) {
+    if (isPending) {
+        clusterPosition.textContent = "Loading...";
+    } else if (isStale) {
+        clusterPosition.textContent = friendObject.location
+            ? friendObject.location + " (cached)"
+            : Object.keys(friendObject).length ? "Offline (cached)" : "Unavailable";
+    } else if (friendObject.location) {
         clusterPosition.textContent = friendObject.location;
         clusterPosition.classList.add("tf-friend-cluster--online");
         clusterPosition.onclick = (event) => {
@@ -146,9 +157,10 @@ function createActionsSection(friend, friendObject, isPinned, itemElement, onRef
 
     // Status indicator
     const status = document.createElement("div");
-    status.className = friendObject.location
-        ? `tf-friend-status ${CSS_CLASSES.statusOnline}`
-        : `tf-friend-status ${CSS_CLASSES.statusOffline}`;
+    status.className = (isPending || isStale) ? "tf-friend-status tf-status--stale"
+        : friendObject.location
+            ? `tf-friend-status ${CSS_CLASSES.statusOnline}`
+            : `tf-friend-status ${CSS_CLASSES.statusOffline}`;
 
     // Pin button
     const pinButton = createPinButton(friend, isPinned, onRefresh);

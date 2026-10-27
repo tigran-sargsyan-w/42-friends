@@ -1,80 +1,91 @@
 /**
- * @file cache.js
- * @description Local cache for friend data to reduce API calls.
- *
- * Uses chrome.storage.local (not synced) because:
- * - Cache data can be large
- * - Cache is device-specific and transient
- * - Reduces unnecessary network requests
+ * v0.1.5 cached data is still valid. Profile and logtime are now separately
+ * timestamped so a logtime refresh never forces an unnecessary profile fetch.
  */
+import { CACHE_KEY_PREFIX } from "./constants.js";
 
-import { CACHE_EXPIRY_MS, CACHE_KEY_PREFIX } from "./constants.js";
+const storage = chrome.storage.local;
+export const PROFILE_TTL_MS = 4 * 60 * 1000;
+export const LOGTIME_TTL_MS = 15 * 60 * 1000;
 
-const localStorage = chrome.storage.local;
+function legacyKey(login) { return CACHE_KEY_PREFIX + login; }
+function resourceKey(login, kind) { return "tf_resource_" + kind + "_" + login; }
 
-/**
- * Generates the cache key for a friend login.
- * @param {string} friend - Friend login
- * @returns {string} Cache key
- */
-function getCacheKey(friend) {
-    return `${CACHE_KEY_PREFIX}${friend}`;
+function entry(data, timestamp) {
+    return data && typeof data === "object" && !Array.isArray(data) &&
+        Number.isFinite(timestamp) ? { data, timestamp } : null;
 }
 
-/**
- * Gets cached friend data if it exists and hasn't expired.
- * @param {string} friend - Friend login
- * @returns {Promise<Object|null>} Cached data or null if expired/missing
- */
-export async function getCachedFriendData(friend) {
-    const cacheKey = getCacheKey(friend);
-    const result = await localStorage.get(cacheKey);
-    const cached = result[cacheKey];
-
-    if (!cached) {
-        return null;
-    }
-
-    // Check if cache is still valid
-    if (Date.now() - cached.timestamp < CACHE_EXPIRY_MS) {
-        return cached.data;
-    }
-
-    // Cache expired, remove it
-    await localStorage.remove(cacheKey);
-    return null;
+export async function getFriendResourceState(login) {
+    const keys = [legacyKey(login), resourceKey(login, "profile"),
+        resourceKey(login, "logtime")];
+    const saved = await storage.get(keys);
+    const legacy = saved[legacyKey(login)];
+    const profile = saved[resourceKey(login, "profile")] ||
+        entry(legacy?.data?.friend_object, legacy?.timestamp);
+    const logtime = saved[resourceKey(login, "logtime")] ||
+        entry(legacy?.data?.log_time_object, legacy?.timestamp);
+    const now = Date.now();
+    return {
+        profile: profile?.data || null,
+        logtime: logtime?.data || null,
+        profileFresh: !!profile && now - profile.timestamp < PROFILE_TTL_MS,
+        logtimeFresh: !!logtime && now - logtime.timestamp < LOGTIME_TTL_MS
+    };
 }
 
-/**
- * Stores friend data in cache with current timestamp.
- * @param {string} friend - Friend login
- * @param {Object} data - Friend data to cache
- */
-export async function setCachedFriendData(friend, data) {
-    const cacheKey = getCacheKey(friend);
-    await localStorage.set({
-        [cacheKey]: {
-            data,
-            timestamp: Date.now()
-        }
+export async function getCachedFriendData(login, { allowStale = false } = {}) {
+    const cache = await getFriendResourceState(login);
+    if (!cache.profile && !cache.logtime) return null;
+    if (!allowStale && (!cache.profileFresh || !cache.logtimeFresh)) return null;
+    return {
+        friend: login,
+        friend_object: cache.profile || {},
+        log_time_object: cache.logtime || {},
+        _stale: !cache.profileFresh,
+        _logtimeStale: !cache.logtimeFresh
+    };
+}
+
+export async function isFriendCacheFresh(login) {
+    const state = await getFriendResourceState(login);
+    return state.profileFresh && state.logtimeFresh;
+}
+
+export async function saveFriendResource(login, kind, data) {
+    if (!["profile", "logtime"].includes(kind)) throw Error("Unknown cache kind");
+    await storage.set({
+        [resourceKey(login, kind)]: { data, timestamp: Date.now() }
+    });
+}
+
+// Retain v0.1.5 API for compatibility and testing.
+export async function setCachedFriendData(login, data) {
+    const timestamp = Date.now();
+    await storage.set({
+        [legacyKey(login)]: { data, timestamp },
+        [resourceKey(login, "profile")]: { data: data.friend_object, timestamp },
+        [resourceKey(login, "logtime")]: { data: data.log_time_object, timestamp }
     });
 }
 
 /**
- * Clears cached data for a specific friend or all friends.
- * @param {string} [friend] - Optional friend login. If omitted, clears all cache.
+ * Manual refresh never deletes any data and never triggers a full burst of
+ * 31 users. Fresh entries remain fresh even after repeated clicks.
  */
-export async function clearFriendCache(friend) {
-    if (friend) {
-        await localStorage.remove(getCacheKey(friend));
+export async function markFriendCacheForRefresh() {
+    // A normal render automatically refreshes expired entries.
+    // No forced mass invalidation on a refresh button click.
+}
+
+export async function clearFriendCache(login) {
+    if (login) {
+        await storage.remove([legacyKey(login), resourceKey(login, "profile"),
+            resourceKey(login, "logtime")]);
         return;
     }
-
-    // Clear all friend cache entries
-    const all = await localStorage.get(null);
-    const cacheKeys = Object.keys(all).filter(key => key.startsWith(CACHE_KEY_PREFIX));
-
-    if (cacheKeys.length > 0) {
-        await localStorage.remove(cacheKeys);
-    }
+    const all = await storage.get(null);
+    const keys = Object.keys(all).filter(key =>
+        key.startsWith(CACHE_KEY_PREFIX) || key.startsWith("tf_resource_"));
+    if (keys.length) await storage.remove(keys);
 }
