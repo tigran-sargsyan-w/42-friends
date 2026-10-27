@@ -2,8 +2,8 @@
  * A tiny, testable batch runner. It limits concurrent users (not per-user
  * request delays), and stops after a rate limit rather than flooding Intra.
  */
-export const INITIAL_BATCH_SIZE = 3;
-export const BATCH_GAP_MS = 1000;
+export const INITIAL_BATCH_SIZE = 2;
+export const BATCH_GAP_MS = 0;
 
 export const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -49,7 +49,7 @@ export async function loadInBatches({
             return { remaining, stopped: "rate_limited", rateLimitedUntil, failures };
         }
         if (failedThisGroup === group.length &&
-            ["network_error", "invalid_response", "unauthorized"].includes(errorCode)) {
+            ["network_error", "invalid_response", "unauthorized", "scheduler_unavailable"].includes(errorCode)) {
             // A broken session or network should not trigger 31 failed requests.
             return { remaining, stopped: errorCode, failures };
         }

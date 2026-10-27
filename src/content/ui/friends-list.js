@@ -6,7 +6,7 @@ import { CSS_CLASSES } from "../constants.js";
 import { getTodayDateString } from "../utils.js";
 import { getFriendList, cleanupPinnedFriends } from "../storage.js";
 import { fetchFriendData, getCooldownUntil } from "../api.js";
-import { getCachedFriendData, isFriendCacheFresh } from "../cache.js";
+import { getCachedFriendData } from "../cache.js";
 import { loadInBatches, INITIAL_BATCH_SIZE, BATCH_GAP_MS } from "../batches.js";
 import { sortFriendDataList } from "../sorting.js";
 import { createFriendItem } from "./friend-item.js";
@@ -118,10 +118,10 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
     await Promise.all(friendList.map(async friend => {
         const cached = await getCachedFriendData(friend, { allowStale: true })
             .catch(() => null);
-        const fresh = await isFriendCacheFresh(friend).catch(() => false);
         rows.set(friend, cached
-            ? { ...cached, friend, _pending: false, _stale: !fresh }
-            : { friend, friend_object: {}, log_time_object: {}, _pending: true, _stale: false });
+            ? { ...cached, friend, _pending: false }
+            : { friend, friend_object: {}, log_time_object: {},
+                _pending: true, _stale: true, _logtimeStale: true });
     }));
     if (!active()) return;
 
@@ -132,7 +132,10 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
 
     // Fresh records have already been loaded from cache. Only stale/missing
     // records should hit Intra, and all reads happen in the content script.
-    pending = order.filter(login => rows.get(login)._pending || rows.get(login)._stale);
+    pending = order.filter(login => {
+        const data = rows.get(login);
+        return data._pending || data._stale || data._logtimeStale;
+    });
     processed = friendList.length - pending.length;
     loading = pending.length > 0;
     render();
@@ -142,21 +145,29 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
         if (!active()) return;
         const outcome = await loadInBatches({
             friends: pending,
-            load: fetchFriendData,
+            load: friend => fetchFriendData(friend, partial => {
+                if (!active()) return;
+                const previous = rows.get(friend);
+                rows.set(friend, {
+                    ...previous, ...partial, friend, _pending: false
+                });
+                scheduleRender();
+            }),
             active,
             batchSize: rateLimits ? 1 : INITIAL_BATCH_SIZE,
             gapMs: rateLimits ? 1500 : BATCH_GAP_MS,
             onResult(friend, data, error) {
                 if (!active()) return;
                 if (data) {
-                    rows.set(friend, { ...data, friend, _pending: false, _stale: false });
+                    rows.set(friend, { ...data, friend, _pending: false });
                 } else {
                     const previous = rows.get(friend);
                     const partial = error?.partial;
                     rows.set(friend, {
                         ...(partial || previous), friend,
-                        _pending: false, _stale: !partial,
-                        _logtimeStale: Boolean(partial)
+                        _pending: false,
+                        _stale: partial ? partial._stale : true,
+                        _logtimeStale: partial ? partial._logtimeStale : true
                     });
                 }
                 scheduleRender();

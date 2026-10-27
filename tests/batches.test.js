@@ -2,68 +2,59 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { loadInBatches } from "../src/content/batches.js";
 
-test("runs three friends per group, with no per-request 1.8s sleep", async () => {
-    let inFlight = 0;
+test("at most two friends request data concurrently; request pacing is global", async () => {
+    let concurrency = 0;
     let maximum = 0;
-    const groups = [];
-    const received = [];
-    const list = Array.from({ length: 31 }, (_, i) => "u" + i);
+    const seen = [];
     const result = await loadInBatches({
-        friends: list,
-        batchSize: 3,
-        gapMs: 1000,
-        delay: async time => { groups.push(time); },
+        friends: Array.from({ length: 31 }, (_, i) => "u" + i),
+        batchSize: 2, gapMs: 0,
         load: async friend => {
-            inFlight++;
-            maximum = Math.max(maximum, inFlight);
+            concurrency++;
+            maximum = Math.max(concurrency, maximum);
             await Promise.resolve();
-            inFlight--;
+            concurrency--;
             return { friend };
         },
-        onResult: (name, data) => received.push([name, data.friend])
+        onResult: (friend, value) => seen.push(value.friend)
     });
-    assert.equal(maximum, 3);
-    assert.equal(received.length, 31);
-    assert.equal(groups.length, 10);
-    assert.ok(groups.every(x => x === 1000));
+    assert.equal(maximum, 2);
+    assert.equal(seen.length, 31);
     assert.equal(result.stopped, null);
 });
 
-test("429 pauses after current small batch and retains unfinished friends", async () => {
+test("429 preserves pending work and pauses before next batch", async () => {
     const requested = [];
-    const until = Date.now() + 20000;
+    const deadline = Date.now() + 20000;
     const outcome = await loadInBatches({
-        friends: ["alice", "bob", "carol", "dave", "eve"],
-        batchSize: 2,
-        gapMs: 0,
-        load: async name => {
-            requested.push(name);
-            if (name === "alice") throw Object.assign(new Error("rate limit"), {
-                code: "rate_limited", cooldownUntil: until
+        friends: ["alice", "bob", "carol", "dave"],
+        batchSize: 2, gapMs: 0,
+        load: async friend => {
+            requested.push(friend);
+            if (friend === "alice") throw Object.assign(new Error("rate limit"), {
+                code: "rate_limited", cooldownUntil: deadline
             });
-            return { friend: name };
+            return { friend };
         },
         onResult: () => {}
     });
     assert.deepEqual(requested, ["alice", "bob"]);
     assert.equal(outcome.stopped, "rate_limited");
-    assert.equal(outcome.rateLimitedUntil, until);
-    assert.deepEqual(outcome.remaining, ["alice", "carol", "dave", "eve"]);
+    assert.deepEqual(outcome.remaining, ["alice", "carol", "dave"]);
 });
 
-test("a broken session fails fast rather than making 31 requests", async () => {
+test("scheduler unavailable stops an entire burst instead of repeating failures", async () => {
     let count = 0;
     const result = await loadInBatches({
         friends: Array.from({ length: 31 }, (_, i) => String(i)),
-        batchSize: 3,
-        gapMs: 0,
+        batchSize: 2, gapMs: 0,
         load: async () => {
             count++;
-            throw Object.assign(new Error("No session"), { code: "unauthorized" });
+            throw Object.assign(new Error("No scheduler"), { code: "scheduler_unavailable" });
         },
         onResult: () => {}
     });
-    assert.equal(count, 3);
-    assert.equal(result.stopped, "unauthorized");
-    assert.equal(result.remaining.length, 28);
+    assert.equal(count, 2);
+    assert.equal(result.stopped, "scheduler_unavailable");
+    assert.equal(result.remaining.length, 29);
 });

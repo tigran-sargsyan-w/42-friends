@@ -1,13 +1,17 @@
-# 42 Friends 0.1.6 — minimal rate-limit fix
+# 42 Friends 0.1.6 — adaptive rate-budget test checklist
 
-- [ ] CI build and automated tests pass.
-- [ ] Load the ZIP's unpacked extension in Chrome (unzip archive containing manifest.json).
-- [ ] Use the same 42 Intra session and verify the friend cards have avatars, real locations and logtimes.
-- [ ] Verify saved friends and pinned preferences from v0.1.5 remain intact.
-- [ ] Confirm the original content script sends requests; there is no background worker.
-- [ ] With 31 saved friends, visible cards appear immediately; uncached values update in batches.
-- [ ] The Refresh button retains the displayed list while refetching only data older than 60 seconds.
-- [ ] Confirm a real HTTP 429 pauses new batches as directed by Retry-After, without repeated aggressive requests.
-- [ ] Verify sorting, add/remove friend, profile button, pin/unpin, scroll and tooltip behavior.
-- [ ] Test multiple Intra tabs without causing rate limit. (Currently cooldown is shared, batches are per tab.)
-- [ ] Only after successful manual tests: merge PR, package, submit update to existing Chrome Web Store listing.
+- [ ] GitHub Actions: npm ci, npm test, npm run build, test artifact.
+- [ ] Install unpacked test build in a separate Chrome profile. Ensure no two test extensions are enabled.
+- [ ] Check existing synced friends, pins, sort settings, profile buttons, avatars and logtime.
+- [ ] Verify requests to profile/translate execute from content.js, NOT background.js.
+- [ ] Inspect the service worker: it only grants a global request-start budget.
+- [ ] Open 3 Intra tabs and verify that requests from all tabs are spaced apart.
+- [ ] Observe 429 behavior without deliberately flooding Intra: Retry-After plus safety margin, slower interval, automatic recovery.
+- [ ] Reload the page. Cached cards appear immediately, refreshed data is reused, and no full request burst occurs.
+- [ ] Compare profile and logtime refresh frequencies (4 min vs 15 min TTL).
+- [ ] Refresh button must not invalidate all cached friends.
+- [ ] Confirm full list loads and statuses are correct after an ordinary reload without 429.
+- [ ] If 42 imposes stricter limits than configured, adjust the request budget rather than increasing concurrency.
+- [ ] Only after real-browser verification, merge and prepare an update for the existing Chrome Web Store listing.
+
+**Tradeoff:** first-time fetch of 31 profiles and logtime records cannot be both instant and safe under a strict server limit.
