@@ -28,10 +28,19 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
     const pinned = await cleanupPinnedFriends(friendList);
     if (!controller.active || !container.isConnected) return;
     const today = getTodayDateString();
-    const byFriend = new Map();
+    // Render saved logins immediately, even without a local cache or network.
+    const byFriend = new Map(friendList.map(friend => [friend, {
+        friend,
+        friend_object: {},
+        log_time_object: {},
+        stale: true,
+        logtimeStale: true,
+        unavailable: true
+    }]));
     let completed = 0;
     let cooldownUntil = 0;
     let failed = 0;
+    const failureCodes = new Map();
     let loading = true;
 
     function paint() {
@@ -50,7 +59,8 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
         } else if (failed) {
             const notice = document.createElement("div");
             notice.className = "tf-network-notice";
-            notice.textContent = "Some friends could not be updated. Showing saved data where available.";
+            const codes = [...failureCodes.entries()].map(([code, count]) => `${code}: ${count}`).join(", ");
+            notice.textContent = `Some friends could not be updated (${codes || "unknown error"}). Showing saved data where available.`;
             container.appendChild(notice);
         }
 
@@ -133,6 +143,8 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
             if (!controller.active || !container.isConnected) return;
             if (result.error) {
                 failed++;
+                const code = result.error.code || "unknown";
+                failureCodes.set(code, (failureCodes.get(code) || 0) + 1);
                 if (result.error.code === "rate_limited" || result.error.code === "queue_busy") {
                     cooldownUntil = Math.max(cooldownUntil, Number(result.error.cooldownUntil) || 0);
                 }
@@ -140,6 +152,8 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
             byFriend.set(friend, result);
         } catch (error) {
             failed++;
+            const code = error.code || "unknown";
+            failureCodes.set(code, (failureCodes.get(code) || 0) + 1);
             console.warn(`42 Friends: unable to load ${friend}`, error);
         } finally {
             if (controller.active && container.isConnected) {

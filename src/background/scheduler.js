@@ -141,9 +141,18 @@ export class RequestScheduler {
                     this.consecutiveRateLimits = 0;
                     task.resolve(data);
                 } catch (error) {
-                    task.reject(error instanceof RequestError
+                    const normalized = error instanceof RequestError
                         ? error
-                        : new RequestError("network_error", String(error?.message || error)));
+                        : new RequestError("network_error", String(error?.message || error));
+                    task.reject(normalized);
+                    // A missing session or an HTML response instead of JSON often
+                    // affects every friend. Stop the remaining batch immediately.
+                    // Unlike 429, we do not retry automatically on these errors.
+                    if (normalized.code === "unauthorized" ||
+                        normalized.code === "invalid_response") {
+                        this.rejectQueued(normalized);
+                        break;
+                    }
                 }
             }
         } finally {

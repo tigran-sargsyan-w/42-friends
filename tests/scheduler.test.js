@@ -111,3 +111,18 @@ test("bounded queue declines excess requests without sending them", async () => 
     finish();
     await b;
 });
+
+test("authorization failure cancels pending requests instead of querying all friends", async () => {
+    let sent = 0;
+    const scheduler = new RequestScheduler({
+        minIntervalMs: 0,
+        fetchImpl: async () => {
+            sent++;
+            return new Response("session expired", { status: 401 });
+        }
+    });
+    const results = await Promise.allSettled(["alice", "bob", "charlie"].map(login => scheduler.request(login)));
+    assert.equal(sent, 1);
+    assert.equal(results.length, 3);
+    assert.ok(results.every(result => result.status === "rejected" && result.reason.code === "unauthorized"));
+});

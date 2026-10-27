@@ -37,6 +37,7 @@ export function createFriendItem({
     logTimeObject,
     isPinned,
     isStale = false,
+    isLogtimeStale = false,
     onRefresh
 }) {
     try {
@@ -65,6 +66,11 @@ export function createFriendItem({
         container.appendChild(item);
     } catch (error) {
         console.warn(`Failed to display data for ${friend}`, error);
+        // An unexpected card error must never hide a saved friend.
+        const fallback = document.createElement("div");
+        fallback.className = CSS_CLASSES.friendItem;
+        fallback.textContent = `${friend} — details unavailable`;
+        container.appendChild(fallback);
     }
 }
 
