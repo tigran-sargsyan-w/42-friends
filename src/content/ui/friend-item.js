@@ -114,7 +114,10 @@ function createDetailsSection(friend, today, logTimeObject, isPinned, isLogtimeS
 
     const logTime = document.createElement("div");
     logTime.className = "tf-friend-logtime";
-    const timeToday = logTimeObject[today];\n    logTime.textContent = isLogtimeStale\n        ? (timeToday ? formatLogTime(timeToday).replace(" today", " (cached)") : "Logtime unknown")\n        : formatLogTime(timeToday);
+    const timeToday = logTimeObject[today];
+    logTime.textContent = isLogtimeStale
+        ? (timeToday ? formatLogTime(timeToday).replace(" today", " (cached)") : "Logtime unknown")
+        : formatLogTime(timeToday);
 
     details.appendChild(login);
     details.appendChild(logTime);

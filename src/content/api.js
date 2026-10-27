@@ -48,7 +48,8 @@ export async function getFriendSnapshot(friend) {
         cached.profile?.data,
         cached.logtime?.data,
         null,
-        !cached.profile?.fresh,\n        !cached.logtime?.fresh
+        !cached.profile?.fresh,
+        !cached.logtime?.fresh
     );
 }
 
@@ -60,16 +61,20 @@ export async function fetchFriendData(friend) {
     const cached = await readFriendCache(friend);
     let profile = cached.profile?.data;
     let logtime = cached.logtime?.data;
-    let failure = null;\n    let profileFresh = Boolean(cached.profile?.fresh);\n    let logtimeFresh = Boolean(cached.logtime?.fresh);
+    let failure = null;
+    let profileFresh = Boolean(cached.profile?.fresh);
+    let logtimeFresh = Boolean(cached.logtime?.fresh);
 
     try {
         if (!cached.profile?.fresh) {
             profile = await fetchRemote(friend, "profile");
-            await saveFriendResource(friend, "profile", profile);\n            profileFresh = true;
+            await saveFriendResource(friend, "profile", profile);
+            profileFresh = true;
         }
         if (!cached.logtime?.fresh) {
             logtime = await fetchRemote(friend, "logtime");
-            await saveFriendResource(friend, "logtime", logtime);\n            logtimeFresh = true;
+            await saveFriendResource(friend, "logtime", logtime);
+            logtimeFresh = true;
         }
     } catch (error) {
         failure = {

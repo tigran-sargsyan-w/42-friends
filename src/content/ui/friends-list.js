@@ -24,9 +24,9 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
     controllers.set(container, controller);
 
     const friendList = await getFriendList();
-    if (!controller.active) return;
+    if (!controller.active || !container.isConnected) return;
     const pinned = await cleanupPinnedFriends(friendList);
-    if (!controller.active) return;
+    if (!controller.active || !container.isConnected) return;
     const today = getTodayDateString();
     const byFriend = new Map();
     let completed = 0;
@@ -35,7 +35,7 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
     let loading = true;
 
     function paint() {
-        if (!controller.active) return;
+        if (!controller.active || !container.isConnected) return;
         document.querySelectorAll(`.${CSS_CLASSES.hoverCard}`).forEach(card => card.remove());
         container.replaceChildren();
         if (!friendList.length) {
@@ -80,7 +80,8 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
                     friendObject: item.friend_object,
                     logTimeObject: item.log_time_object,
                     isPinned,
-                    isStale: item.stale || item.unavailable,\n                    isLogtimeStale: item.logtimeStale,
+                    isStale: item.stale || item.unavailable,
+                    isLogtimeStale: item.logtimeStale,
                     onRefresh
                 });
             }
@@ -112,12 +113,12 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
     await Promise.all(friendList.map(async friend => {
         try {
             const snapshot = await getFriendSnapshot(friend);
-            if (snapshot && controller.active) byFriend.set(friend, snapshot);
+            if (snapshot && controller.active && container.isConnected) byFriend.set(friend, snapshot);
         } catch (error) {
             console.warn("42 Friends: cache read failed", error);
         }
     }));
-    if (!controller.active) return;
+    if (!controller.active || !container.isConnected) return;
     paint();
 
     const ordered = [...friendList.filter(friend => pinned.includes(friend)),
@@ -125,7 +126,7 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
     await Promise.all(ordered.map(async friend => {
         try {
             const result = await fetchFriendData(friend);
-            if (!controller.active) return;
+            if (!controller.active || !container.isConnected) return;
             if (result.error) {
                 failed++;
                 if (result.error.code === "rate_limited" || result.error.code === "queue_busy") {
@@ -137,14 +138,14 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
             failed++;
             console.warn(`42 Friends: unable to load ${friend}`, error);
         } finally {
-            if (controller.active) {
+            if (controller.active && container.isConnected) {
                 completed++;
                 schedulePaint();
             }
         }
     }));
 
-    if (!controller.active) return;
+    if (!controller.active || !container.isConnected) return;
     loading = false;
     clearTimeout(controller.paintTimer);
     controller.paintTimer = null;
@@ -152,7 +153,7 @@ export async function renderFriendsList(container, sortPreference, onRefresh) {
 
     if (cooldownUntil > Date.now()) {
         const resume = () => {
-            if (!controller.active || document.visibilityState === "hidden") return;
+            if (!controller.active || !container.isConnected || document.visibilityState === "hidden") return;
             controller.dispose();
             void renderFriendsList(container, sortPreference, onRefresh);
         };
