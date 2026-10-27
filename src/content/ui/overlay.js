@@ -8,7 +8,6 @@
 
 import { DOM_IDS, SYNC_KEYS, CSS_CLASSES, OVERLAY_DEFAULTS } from "../constants.js";
 import { getOverlayState, setOverlayState, getFriendSortPreference } from "../storage.js";
-import { clearFriendCache } from "../cache.js";
 import { createFriendsToolbar } from "./toolbar.js";
 import { renderFriendsList } from "./friends-list.js";
 
@@ -44,7 +43,6 @@ export async function buildOverlay() {
     const refreshButton = header.querySelector(".tf-header__refresh");
     refreshButton.onclick = async (event) => {
         event.stopPropagation();
-        await clearFriendCache();
         await renderFriendsOverlay(body);
     };
 

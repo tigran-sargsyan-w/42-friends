@@ -124,6 +124,11 @@ async function copyStaticAssets() {
         }
     }
 
+    // Background service worker lives next to build/manifest.json.
+    if (manifest.background?.service_worker) {
+        manifest.background.service_worker = manifest.background.service_worker.replace(/^build\//, "");
+    }
+
     // Write transformed manifest to build/
     await fs.promises.writeFile(
         "build/manifest.json",
@@ -149,9 +154,12 @@ async function copyStaticAssets() {
 }
 
 const buildOptions = {
-    entryPoints: ["src/content/index.js"],
+    entryPoints: {
+        content: "src/content/index.js",
+        background: "src/background/index.js"
+    },
     bundle: true,
-    outfile: "build/content.js",
+    outdir: "build",
     format: "iife",
     target: ["chrome126", "firefox128"],
     minify: false,

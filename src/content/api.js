@@ -1,93 +1,84 @@
 /**
- * @file api.js
- * @description Network requests for fetching friend and profile data from 42 intra APIs.
- *
- * Uses the cache module to avoid redundant network requests.
- * Implements retry logic for transient failures.
+ * Friend data access. All HTTP requests are routed through the shared
+ * background scheduler; no content script fetches 42 endpoints directly.
  */
+import { readFriendCache, saveFriendResource } from "./cache.js";
 
-import { getCachedFriendData, setCachedFriendData } from "./cache.js";
+function toResult(friend, profile, logtime, error = null, stale = false) {
+    return {
+        friend,
+        friend_object: profile || {},
+        log_time_object: logtime || {},
+        unavailable: !profile,
+        stale,
+        error
+    };
+}
+
+async function fetchRemote(friend, kind) {
+    const response = await chrome.runtime.sendMessage({
+        type: "42-friends:fetch",
+        friend,
+        login: friend,
+        kind
+    });
+    if (!response || !response.ok) {
+        const details = response?.error || { code: "network_error", message: "No response from extension" };
+        const error = new Error(details.message || "Failed to load friend data");
+        Object.assign(error, details);
+        throw error;
+    }
+    if (!response.data || typeof response.data !== "object") {
+        const error = new Error("Invalid 42 Intra data");
+        error.code = "invalid_response";
+        throw error;
+    }
+    return response.data;
+}
 
 /**
- * Fetches complete friend data (profile + log time) with caching and retry.
- *
- * @param {string} friend - Friend login to fetch
- * @param {number} [retries=2] - Number of retry attempts on failure
- * @returns {Promise<Object|null>} Friend data object or null if user doesn't exist
- * @throws {Error} If all retry attempts fail
+ * Last known snapshot for immediate rendering. Never discards expired data;
+ * stale entries must be visually marked as such.
  */
-export async function fetchFriendData(friend, retries = 2) {
-    // Check cache first
-    const cached = await getCachedFriendData(friend);
-    if (cached) {
-        return cached;
-    }
+export async function getFriendSnapshot(friend) {
+    const cached = await readFriendCache(friend);
+    if (!cached.profile && !cached.logtime) return null;
+    return toResult(
+        friend,
+        cached.profile?.data,
+        cached.logtime?.data,
+        null,
+        !cached.profile?.fresh || !cached.logtime?.fresh
+    );
+}
 
-    // Fetch with retry logic
-    for (let attempt = 0; attempt <= retries; attempt++) {
-        try {
-            const friendObject = await fetchUserProfile(friend);
+/**
+ * Refreshes only missing/expired resources. Successful profile responses
+ * survive a subsequent logtime failure.
+ */
+export async function fetchFriendData(friend) {
+    const cached = await readFriendCache(friend);
+    let profile = cached.profile?.data;
+    let logtime = cached.logtime?.data;
+    let failure = null;
 
-            // Empty response means user doesn't exist
-            if (!friendObject || !Object.keys(friendObject).length) {
-                return null;
-            }
-
-            const logTimeObject = await fetchUserLogTime(friend);
-
-            const data = {
-                friend,
-                friend_object: friendObject,
-                log_time_object: logTimeObject
-            };
-
-            // Cache the successful result
-            await setCachedFriendData(friend, data);
-            return data;
-
-        } catch (error) {
-            if (attempt === retries) {
-                console.warn(`Failed to load data for ${friend} after ${retries + 1} attempts`, error);
-                throw error;
-            }
-
-            // Exponential backoff: 1s, 2s, 3s...
-            await sleep(1000 * (attempt + 1));
+    try {
+        if (!cached.profile?.fresh) {
+            profile = await fetchRemote(friend, "profile");
+            await saveFriendResource(friend, "profile", profile);
         }
+        if (!cached.logtime?.fresh) {
+            logtime = await fetchRemote(friend, "logtime");
+            await saveFriendResource(friend, "logtime", logtime);
+        }
+    } catch (error) {
+        failure = {
+            code: error.code || "network_error",
+            message: error.message || "Request failed",
+            cooldownUntil: error.cooldownUntil,
+            retryAfterMs: error.retryAfterMs
+        };
     }
 
-    return null;
-}
-
-/**
- * Fetches user profile data from the intra API.
- * @param {string} login - User login
- * @returns {Promise<Object>} User profile object
- */
-async function fetchUserProfile(login) {
-    const response = await fetch(`https://profile.intra.42.fr/users/${login}`, {
-        credentials: "include"
-    });
-    return response.json();
-}
-
-/**
- * Fetches user log time statistics from the intra API.
- * @param {string} login - User login
- * @returns {Promise<Object>} Log time data keyed by date
- */
-async function fetchUserLogTime(login) {
-    const response = await fetch(`https://translate.intra.42.fr/users/${login}/locations_stats.json`, {
-        credentials: "include"
-    });
-    return response.json();
-}
-
-/**
- * Utility function to pause execution.
- * @param {number} ms - Milliseconds to sleep
- * @returns {Promise<void>}
- */
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return toResult(friend, profile, logtime, failure, Boolean(failure));
 }

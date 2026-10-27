@@ -1,162 +1,165 @@
 /**
- * @file friends-list.js
- * @description Renders the complete friends list with loading states and sections.
- *
- * Handles:
- * - Loading state while fetching
- * - Empty state when no friends
- * - Error state with retry
- * - Pinned and regular friend sections
+ * Progressive friend-list rendering with stale-cache fallback.
+ * A failed friend or rate limit never removes saved friends.
  */
-
 import { CSS_CLASSES } from "../constants.js";
 import { getTodayDateString } from "../utils.js";
-import { getFriendList, saveFriendList, cleanupPinnedFriends } from "../storage.js";
-import { fetchFriendData } from "../api.js";
+import { getFriendList, cleanupPinnedFriends } from "../storage.js";
+import { fetchFriendData, getFriendSnapshot } from "../api.js";
 import { sortFriendDataList } from "../sorting.js";
 import { createFriendItem } from "./friend-item.js";
 
-/**
- * Renders the friends list in the specified container.
- *
- * @param {HTMLElement} container - Container element for the list
- * @param {string} sortPreference - Current sort preference
- * @param {Function} onRefresh - Callback to refresh the entire overlay
- */
+const controllers = new WeakMap();
+
 export async function renderFriendsList(container, sortPreference, onRefresh) {
+    const previous = controllers.get(container);
+    if (previous) previous.dispose();
+    const controller = { active: true, timer: null, paintTimer: null, onVisible: null };
+    controller.dispose = () => {
+        controller.active = false;
+        clearTimeout(controller.timer);
+        clearTimeout(controller.paintTimer);
+        if (controller.onVisible) document.removeEventListener("visibilitychange", controller.onVisible);
+    };
+    controllers.set(container, controller);
+
+    const friendList = await getFriendList();
+    if (!controller.active) return;
+    const pinned = await cleanupPinnedFriends(friendList);
+    if (!controller.active) return;
     const today = getTodayDateString();
-    let friendList = await getFriendList();
+    const byFriend = new Map();
+    let completed = 0;
+    let cooldownUntil = 0;
+    let failed = 0;
+    let loading = true;
 
-    container.innerHTML = "";
-
-    // Show loading state
-    showLoadingState(container);
-
-    // Handle empty list
-    if (!friendList.length) {
-        showEmptyState(container);
-        return;
-    }
-
-    try {
-        // Fetch all friend data in parallel
-        const friendPromises = friendList.map(friend => fetchFriendData(friend));
-        const results = await Promise.all(friendPromises);
-        const friendDataList = results.filter(data => data !== null);
-
-        // Remove friends that no longer exist from the list
-        if (friendDataList.length !== friendList.length) {
-            const validFriends = friendDataList.map(data => data.friend);
-            await saveFriendList(validFriends);
-            friendList = validFriends;
+    function paint() {
+        if (!controller.active) return;
+        document.querySelectorAll(`.${CSS_CLASSES.hoverCard}`).forEach(card => card.remove());
+        container.replaceChildren();
+        if (!friendList.length) {
+            container.innerHTML = '<div class="tf-empty"><div class="tf-empty__box">Add friends to show them here</div></div>';
+            return;
+        }
+        if (cooldownUntil > Date.now()) {
+            const notice = document.createElement("div");
+            notice.className = "tf-network-notice";
+            notice.textContent = "42 Intra is limiting requests. Showing saved data where available; updates will resume after the cooldown.";
+            container.appendChild(notice);
+        } else if (failed) {
+            const notice = document.createElement("div");
+            notice.className = "tf-network-notice";
+            notice.textContent = "Some friends could not be updated. Showing saved data where available.";
+            container.appendChild(notice);
         }
 
-        // Get and clean pinned list
-        const pinnedList = await cleanupPinnedFriends(friendList);
-
-        // Split into pinned and regular friends
-        const pinnedFriends = friendDataList.filter(data => pinnedList.includes(data.friend));
-        const regularFriends = friendDataList.filter(data => !pinnedList.includes(data.friend));
-
-        // Sort both lists
-        sortFriendDataList(pinnedFriends, sortPreference);
-        sortFriendDataList(regularFriends, sortPreference);
-
-        // Clear loading and render
-        container.innerHTML = "";
-
+        const data = [...byFriend.values()];
+        const pinnedData = data.filter(item => pinned.includes(item.friend));
+        const regularData = data.filter(item => !pinned.includes(item.friend));
+        sortFriendDataList(pinnedData, sortPreference);
+        sortFriendDataList(regularData, sortPreference);
         const list = document.createElement("div");
         list.className = "tf-friends-list-scroll";
         container.appendChild(list);
 
-        // Render pinned section
-        if (pinnedFriends.length) {
-            list.appendChild(createSectionTitle("Pinned"));
-
-            for (const data of pinnedFriends) {
+        for (const [title, items, isPinned] of [
+            ["Pinned", pinnedData, true],
+            ["Friends", regularData, false]
+        ]) {
+            if (!items.length) continue;
+            const heading = document.createElement("div");
+            heading.className = CSS_CLASSES.sectionTitle;
+            heading.textContent = title;
+            list.appendChild(heading);
+            for (const item of items) {
                 createFriendItem({
                     container: list,
-                    friend: data.friend,
+                    friend: item.friend,
                     today,
-                    friendObject: data.friend_object,
-                    logTimeObject: data.log_time_object,
-                    isPinned: true,
+                    friendObject: item.friend_object,
+                    logTimeObject: item.log_time_object,
+                    isPinned,
+                    isStale: item.stale || item.unavailable,
                     onRefresh
                 });
             }
         }
-
-        // Render regular friends section
-        if (regularFriends.length) {
-            list.appendChild(createSectionTitle("Friends"));
-
-            for (const data of regularFriends) {
-                createFriendItem({
-                    container: list,
-                    friend: data.friend,
-                    today,
-                    friendObject: data.friend_object,
-                    logTimeObject: data.log_time_object,
-                    isPinned: false,
-                    onRefresh
-                });
-            }
+        if (loading) {
+            const status = document.createElement("div");
+            status.className = "tf-loading__text";
+            status.textContent = `Loading friends… ${completed}/${friendList.length}`;
+            container.appendChild(status);
+        } else if (!data.length) {
+            const error = document.createElement("div");
+            error.className = "tf-error";
+            error.innerHTML = '<div class="tf-error__title">Friends unavailable</div><div class="tf-error__message">42 Intra could not provide friend data.</div><button type="button" class="tf-error__retry">Retry</button>';
+            error.querySelector("button").onclick = () => {
+                if (Date.now() >= cooldownUntil) void renderFriendsList(container, sortPreference, onRefresh);
+            };
+            container.appendChild(error);
         }
-
-    } catch (error) {
-        showErrorState(container, sortPreference, onRefresh);
     }
-}
 
-/**
- * Creates a section title element.
- */
-function createSectionTitle(title) {
-    const sectionTitle = document.createElement("div");
-    sectionTitle.className = CSS_CLASSES.sectionTitle;
-    sectionTitle.textContent = title;
-    return sectionTitle;
-}
+    function schedulePaint() {
+        if (controller.paintTimer !== null) return;
+        controller.paintTimer = setTimeout(() => {
+            controller.paintTimer = null;
+            paint();
+        }, 100);
+    }
 
-/**
- * Shows the loading spinner.
- */
-function showLoadingState(container) {
-    container.innerHTML = `
-        <div class="tf-loading">
-            <div class="tf-loading__text">Loading friends...</div>
-            <div class="tf-loading__spinner"></div>
-        </div>
-    `;
-}
+    await Promise.all(friendList.map(async friend => {
+        try {
+            const snapshot = await getFriendSnapshot(friend);
+            if (snapshot && controller.active) byFriend.set(friend, snapshot);
+        } catch (error) {
+            console.warn("42 Friends: cache read failed", error);
+        }
+    }));
+    if (!controller.active) return;
+    paint();
 
-/**
- * Shows the empty state when no friends exist.
- */
-function showEmptyState(container) {
-    container.innerHTML = `
-        <div class="tf-empty">
-            <div class="tf-empty__box">
-                Add friends to show them here
-            </div>
-        </div>
-    `;
-}
+    const ordered = [...friendList.filter(friend => pinned.includes(friend)),
+        ...friendList.filter(friend => !pinned.includes(friend))];
+    await Promise.all(ordered.map(async friend => {
+        try {
+            const result = await fetchFriendData(friend);
+            if (!controller.active) return;
+            if (result.error) {
+                failed++;
+                if (result.error.code === "rate_limited") {
+                    cooldownUntil = Math.max(cooldownUntil, Number(result.error.cooldownUntil) || 0);
+                }
+            }
+            byFriend.set(friend, result);
+        } catch (error) {
+            failed++;
+            console.warn(`42 Friends: unable to load ${friend}`, error);
+        } finally {
+            if (controller.active) {
+                completed++;
+                schedulePaint();
+            }
+        }
+    }));
 
-/**
- * Shows error state with retry button.
- */
-function showErrorState(container, sortPreference, onRefresh) {
-    container.innerHTML = `
-        <div class="tf-error">
-            <div class="tf-error__title">Failed to load friends</div>
-            <div class="tf-error__message">There was an error loading your friend list</div>
-            <button type="button" class="tf-error__retry">Retry</button>
-        </div>
-    `;
+    if (!controller.active) return;
+    loading = false;
+    clearTimeout(controller.paintTimer);
+    controller.paintTimer = null;
+    paint();
 
-    const retryButton = container.querySelector(".tf-error__retry");
-    if (retryButton) {
-        retryButton.onclick = () => renderFriendsList(container, sortPreference, onRefresh);
+    if (cooldownUntil > Date.now()) {
+        const resume = () => {
+            if (!controller.active || document.visibilityState === "hidden") return;
+            controller.dispose();
+            void renderFriendsList(container, sortPreference, onRefresh);
+        };
+        controller.timer = setTimeout(resume, Math.max(1000, cooldownUntil - Date.now() + 300));
+        controller.onVisible = () => {
+            if (Date.now() >= cooldownUntil) resume();
+        };
+        document.addEventListener("visibilitychange", controller.onVisible);
     }
 }

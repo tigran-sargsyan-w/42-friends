@@ -1,80 +1,66 @@
 /**
- * @file cache.js
- * @description Local cache for friend data to reduce API calls.
- *
- * Uses chrome.storage.local (not synced) because:
- * - Cache data can be large
- * - Cache is device-specific and transient
- * - Reduces unnecessary network requests
+ * Per-resource cache. Old friend_cache_* entries are read for backward
+ * compatibility with 0.1.5; users' saved friend lists are never migrated away.
  */
+const store = chrome.storage.local;
+const PREFIX = "tf_resource_v2_";
+const LEGACY_PREFIX = "friend_cache_";
+const TTL = {
+    profile: 3 * 60 * 1000, // location is part of the profile response
+    logtime: 10 * 60 * 1000
+};
 
-import { CACHE_EXPIRY_MS, CACHE_KEY_PREFIX } from "./constants.js";
-
-const localStorage = chrome.storage.local;
-
-/**
- * Generates the cache key for a friend login.
- * @param {string} friend - Friend login
- * @returns {string} Cache key
- */
-function getCacheKey(friend) {
-    return `${CACHE_KEY_PREFIX}${friend}`;
+function resourceKey(friend, kind) {
+    return `${PREFIX}${kind}_${friend}`;
 }
 
-/**
- * Gets cached friend data if it exists and hasn't expired.
- * @param {string} friend - Friend login
- * @returns {Promise<Object|null>} Cached data or null if expired/missing
- */
-export async function getCachedFriendData(friend) {
-    const cacheKey = getCacheKey(friend);
-    const result = await localStorage.get(cacheKey);
-    const cached = result[cacheKey];
+export async function readFriendCache(friend) {
+    const profileKey = resourceKey(friend, "profile");
+    const logtimeKey = resourceKey(friend, "logtime");
+    const legacyKey = LEGACY_PREFIX + friend;
+    const result = await store.get([profileKey, logtimeKey, legacyKey]);
+    const legacy = result[legacyKey];
 
-    if (!cached) {
-        return null;
+    function fromCache(kind, legacyField) {
+        const entry = result[resourceKey(friend, kind)] ||
+            (legacy?.data?.[legacyField] && {
+                data: legacy.data[legacyField],
+                timestamp: legacy.timestamp
+            });
+        if (!entry || typeof entry.timestamp !== "number" || !entry.data ||
+            typeof entry.data !== "object") return null;
+        return {
+            data: entry.data,
+            timestamp: entry.timestamp,
+            fresh: Date.now() - entry.timestamp < TTL[kind]
+        };
     }
 
-    // Check if cache is still valid
-    if (Date.now() - cached.timestamp < CACHE_EXPIRY_MS) {
-        return cached.data;
-    }
-
-    // Cache expired, remove it
-    await localStorage.remove(cacheKey);
-    return null;
+    return {
+        profile: fromCache("profile", "friend_object"),
+        logtime: fromCache("logtime", "log_time_object")
+    };
 }
 
-/**
- * Stores friend data in cache with current timestamp.
- * @param {string} friend - Friend login
- * @param {Object} data - Friend data to cache
- */
-export async function setCachedFriendData(friend, data) {
-    const cacheKey = getCacheKey(friend);
-    await localStorage.set({
-        [cacheKey]: {
-            data,
-            timestamp: Date.now()
-        }
+export async function saveFriendResource(friend, kind, data) {
+    if (!Object.hasOwn(TTL, kind)) throw new Error("Unsupported cache resource");
+    await store.set({
+        [resourceKey(friend, kind)]: { data, timestamp: Date.now() }
     });
 }
 
-/**
- * Clears cached data for a specific friend or all friends.
- * @param {string} [friend] - Optional friend login. If omitted, clears all cache.
- */
 export async function clearFriendCache(friend) {
     if (friend) {
-        await localStorage.remove(getCacheKey(friend));
+        await store.remove([
+            resourceKey(friend, "profile"),
+            resourceKey(friend, "logtime"),
+            LEGACY_PREFIX + friend
+        ]);
         return;
     }
-
-    // Clear all friend cache entries
-    const all = await localStorage.get(null);
-    const cacheKeys = Object.keys(all).filter(key => key.startsWith(CACHE_KEY_PREFIX));
-
-    if (cacheKeys.length > 0) {
-        await localStorage.remove(cacheKeys);
-    }
+    const values = await store.get(null);
+    const keys = Object.keys(values).filter(
+        key => key.startsWith(PREFIX) || key.startsWith(LEGACY_PREFIX)
+    );
+    if (keys.length) await store.remove(keys);
 }

@@ -36,6 +36,7 @@ export function createFriendItem({
     friendObject,
     logTimeObject,
     isPinned,
+    isStale = false,
     onRefresh
 }) {
     try {
@@ -58,7 +59,7 @@ export function createFriendItem({
         item.appendChild(details);
 
         // Action area (cluster, status, buttons)
-        const actions = createActionsSection(friend, friendObject, isPinned, item, onRefresh);
+        const actions = createActionsSection(friend, friendObject, isPinned, item, onRefresh, isStale);
         item.appendChild(actions);
 
         container.appendChild(item);
@@ -124,7 +125,7 @@ function createDetailsSection(friend, today, logTimeObject, isPinned) {
 /**
  * Creates the actions section with cluster location, status indicator, and buttons.
  */
-function createActionsSection(friend, friendObject, isPinned, itemElement, onRefresh) {
+function createActionsSection(friend, friendObject, isPinned, itemElement, onRefresh, isStale) {
     const actions = document.createElement("div");
     actions.className = "tf-friend-actions";
 
@@ -132,7 +133,10 @@ function createActionsSection(friend, friendObject, isPinned, itemElement, onRef
     const clusterPosition = document.createElement("div");
     clusterPosition.className = "tf-friend-cluster";
 
-    if (friendObject.location) {
+    if (isStale) {
+        clusterPosition.textContent = "Status unknown";
+        clusterPosition.title = "Showing cached or unavailable data";
+    } else if (friendObject.location) {
         clusterPosition.textContent = friendObject.location;
         clusterPosition.classList.add("tf-friend-cluster--online");
         clusterPosition.onclick = (event) => {
@@ -146,9 +150,11 @@ function createActionsSection(friend, friendObject, isPinned, itemElement, onRef
 
     // Status indicator
     const status = document.createElement("div");
-    status.className = friendObject.location
-        ? `tf-friend-status ${CSS_CLASSES.statusOnline}`
-        : `tf-friend-status ${CSS_CLASSES.statusOffline}`;
+    status.className = isStale
+        ? "tf-friend-status tf-status--unknown"
+        : friendObject.location
+            ? `tf-friend-status ${CSS_CLASSES.statusOnline}`
+            : `tf-friend-status ${CSS_CLASSES.statusOffline}`;
 
     // Pin button
     const pinButton = createPinButton(friend, isPinned, onRefresh);

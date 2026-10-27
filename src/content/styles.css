@@ -525,3 +525,19 @@
     background: #ff9a9a;
     border-color: #f27777;
 }
+
+/* Rate-limit feedback and unknown statuses. */
+.tf-network-notice {
+    background: rgba(228, 171, 52, 0.11);
+    border: 1px solid rgba(228, 171, 52, 0.42);
+    border-radius: 8px;
+    color: #e7c782;
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 10px 12px;
+    margin: 8px 10px 10px;
+}
+.tf-friend-status.tf-status--unknown {
+    background: #8793a3;
+    box-shadow: none;
+}
